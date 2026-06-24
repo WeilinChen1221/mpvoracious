@@ -54,6 +54,7 @@ local codec_support = require('encoder.codec_support')
 local make_new_note_checker = require('anki.new_note_checker')
 local make_note_exporter = require('anki.note_exporter')
 local history_normalizer = require('history.normalizer')
+local make_history_controller = require('history.controller')
 local Subtitle = require('subtitles.subtitle')
 local make_release_checker = require('utils.release_checker')
 
@@ -100,6 +101,7 @@ local note_exporter = make_note_exporter.new()
 local cfg_mgr = make_cfg_mgr.new()
 local ankiconnect = make_ankiconnect.new()
 local release_checker = make_release_checker.new()
+local history_controller = make_history_controller.new()
 
 local function _run(params)
     return function()
@@ -179,6 +181,7 @@ self.subs_observer = subs_observer
 self.note_exporter = note_exporter
 self.quick_creation_opts = quick_creation_opts
 self.cfg_mgr = cfg_mgr
+self.history_controller = history_controller
 
 function self.next_hint_page()
     local hint_type_to_menu = {
@@ -385,6 +388,20 @@ global_binds_menu.bindings_switch = switch.new {
     { key = "Ctrl+L", name = "mpvacious-sub-play-up-to-next", fn = _run { play_control.play_till_next_sub_end }, text = "Play until the next subtitle's end" },
     { key = "Alt+l", name = "mpvacious-sub-seek-forward-pause", fn = _run { play_control.sub_seek, 'forward', true }, text = "Seek to the next subtitle and pause" },
 }
+
+local function add_history_global_binding()
+    if cfg_mgr.query("mining_history_enabled") ~= true then
+        return
+    end
+    local item = {
+        key = cfg_mgr.query("mining_history_key"),
+        name = "mpvacious-send-to-mining-history",
+        fn = _run { history_controller.capture_current },
+        text = "Send current subtitle to mining history",
+        force = true,
+    }
+    table.insert(global_binds_menu.bindings_switch.all_items(), item)
+end
 
 function global_binds_menu:print_legend(osd)
     osd:submenu('Global bindings ⇅'):newline()
@@ -602,10 +619,12 @@ local main = (function()
         secondary_sid.init(cfg_mgr)
         ensure_deck()
         subs_observer.init(menu, cfg_mgr)
+        history_controller.init(cfg_mgr, subs_observer)
         note_exporter.init(ankiconnect, quick_creation_opts, subs_observer, encoder, forvo, cfg_mgr)
         new_note_checker.init(ankiconnect, menu:with_update { note_exporter.update_notes }, cfg_mgr)
         pcall_tests()
 
+        add_history_global_binding()
         global_binds_menu:add_global_bindings()
         mp.msg.warn("Press 'a' to open the mpvacious menu.")
         release_checker.init(cfg_mgr)

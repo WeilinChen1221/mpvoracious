@@ -139,6 +139,14 @@ this.defaults = {
     -- New note timer
     enable_new_note_timer = true,        -- Start the new note checker when mpv starts.
     new_note_timer_interval_seconds = 2, -- Check for new notes every N seconds.
+
+    -- Mining history
+    mining_history_enabled = true,
+    mining_history_key = "Ctrl+Shift+n",
+    mining_history_url = "http://127.0.0.1:44765",
+    mining_history_open_browser = true,
+    mining_history_db = "",
+    mining_history_match_window_minutes = 120,
 }
 
 -- Defines config profiles
