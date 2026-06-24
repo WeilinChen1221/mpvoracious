@@ -87,3 +87,29 @@ def test_invalid_status_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(InvalidStatusError):
         store.update_status("rec-1", status="bad", note_id=None, error="")
+
+
+def test_delete_record_removes_one_record(tmp_path: Path) -> None:
+    store = HistoryStore(tmp_path / "history.sqlite3")
+    store.add_record(make_record("keep"))
+    store.add_record(make_record("delete"))
+
+    store.delete_record("delete")
+
+    assert [record["id"] for record in store.list_records()] == ["keep"]
+    with pytest.raises(KeyError):
+        store.get_record("delete")
+
+
+def test_clear_done_records_removes_only_completed_media(tmp_path: Path) -> None:
+    store = HistoryStore(tmp_path / "history.sqlite3")
+    store.add_record(make_record("pending"))
+    store.add_record(make_record("done"))
+    store.add_record(make_record("failed"))
+    store.update_status("done", status="media_done", note_id=1001, error="")
+    store.update_status("failed", status="media_failed", note_id=1002, error="encoder failed")
+
+    deleted = store.clear_done_records()
+
+    assert deleted == 1
+    assert {record["id"] for record in store.list_records()} == {"pending", "failed"}

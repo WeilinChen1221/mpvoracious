@@ -48,13 +48,19 @@ def request_json(
     server: WebTestServer,
     path: str,
     payload: dict[str, Any] | None = None,
+    method: str | None = None,
 ) -> dict[str, Any]:
     data = None
     headers = {"Accept": "application/json"}
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(server.base_url + path, data=data, headers=headers)
+    request = urllib.request.Request(
+        server.base_url + path,
+        data=data,
+        headers=headers,
+        method=method,
+    )
     with urllib.request.urlopen(request, timeout=5) as response:
         assert response.headers["Content-Type"].startswith("application/json")
         return json.loads(response.read().decode("utf-8"))
@@ -102,5 +108,49 @@ def test_health_records_pending_status_and_index(tmp_path: Path) -> None:
             html = response.read().decode("utf-8")
         assert '<main id="records"' in html
         assert "Mpvacious Mining History" in html
+    finally:
+        server.close()
+
+
+def test_delete_record_endpoint_removes_one_record(tmp_path: Path) -> None:
+    server = WebTestServer(tmp_path / "history.sqlite3")
+    try:
+        request_json(server, "/api/records", make_record("keep"))
+        request_json(server, "/api/records", make_record("delete"))
+
+        deleted = request_json(server, "/api/records/delete", method="DELETE")
+
+        assert deleted == {"deleted": 1}
+        records_response = request_json(server, "/api/records")
+        assert [record["id"] for record in records_response["records"]] == ["keep"]
+    finally:
+        server.close()
+
+
+def test_clear_done_endpoint_removes_only_completed_media(tmp_path: Path) -> None:
+    server = WebTestServer(tmp_path / "history.sqlite3")
+    try:
+        request_json(server, "/api/records", make_record("pending"))
+        request_json(server, "/api/records", make_record("done"))
+        request_json(server, "/api/records", make_record("failed"))
+        request_json(
+            server,
+            "/api/records/done/status",
+            {"status": "media_done", "note_id": 1001, "error": ""},
+        )
+        request_json(
+            server,
+            "/api/records/failed/status",
+            {"status": "media_failed", "note_id": 1002, "error": "encoder failed"},
+        )
+
+        deleted = request_json(server, "/api/records/clear-done", {})
+
+        assert deleted == {"deleted": 1}
+        records_response = request_json(server, "/api/records")
+        assert {record["id"] for record in records_response["records"]} == {
+            "pending",
+            "failed",
+        }
     finally:
         server.close()

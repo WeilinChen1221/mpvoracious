@@ -204,6 +204,17 @@ class HistoryStore:
                 raise KeyError(record_id)
         return self.get_record(record_id)
 
+    def delete_record(self, record_id: str) -> None:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
+            if cursor.rowcount == 0:
+                raise KeyError(record_id)
+
+    def clear_done_records(self) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM records WHERE status = 'media_done'")
+            return cursor.rowcount
+
     def retry_record(self, record_id: str) -> dict[str, Any]:
         record = self.get_record(record_id)
         if record["status"] != "media_failed":

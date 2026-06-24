@@ -33,3 +33,5 @@ The existing `deck_name`, `model_name`, `sentence_field`, `audio_field`, and `im
 5. Keep mpvacious running so the new note timer can match notes and add media.
 
 If media creation fails, press `Retry` on the history page while mpvacious is running.
+Press `Delete` on a row to remove that record from the history page. Press `Clear Done`
+to remove only records whose media has already been added successfully.

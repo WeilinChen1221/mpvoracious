@@ -46,6 +46,11 @@ INDEX_HTML = """<!doctype html>
       gap: 12px;
       padding-bottom: 28px;
     }
+    .toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
     article {
       border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
       border-radius: 8px;
@@ -81,8 +86,13 @@ INDEX_HTML = """<!doctype html>
       margin: 0;
       overflow-wrap: anywhere;
     }
-    button {
+    .record-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
       margin-top: 12px;
+    }
+    button {
       padding: 7px 10px;
       border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
       border-radius: 6px;
@@ -90,8 +100,15 @@ INDEX_HTML = """<!doctype html>
       color: CanvasText;
       cursor: pointer;
     }
+    button:disabled {
+      cursor: default;
+      opacity: 0.55;
+    }
     button:hover {
       background: color-mix(in srgb, CanvasText 8%, Canvas);
+    }
+    button:disabled:hover {
+      background: Canvas;
     }
     .empty {
       color: color-mix(in srgb, CanvasText 65%, transparent);
@@ -101,10 +118,14 @@ INDEX_HTML = """<!doctype html>
 <body>
   <header>
     <h1>Mpvacious Mining History</h1>
+    <div class="toolbar">
+      <button id="clear-done" type="button">Clear Done</button>
+    </div>
   </header>
   <main id="records" aria-live="polite"></main>
   <script>
     const recordsEl = document.querySelector("#records");
+    const clearDoneButton = document.querySelector("#clear-done");
 
     function text(value) {
       return value === null || value === undefined || value === "" ? "-" : String(value);
@@ -130,6 +151,9 @@ INDEX_HTML = """<!doctype html>
 
     function render(records) {
       recordsEl.replaceChildren();
+      const doneCount = records.filter((record) => record.status === "media_done").length;
+      clearDoneButton.disabled = doneCount === 0;
+      clearDoneButton.title = doneCount === 0 ? "No completed records to clear" : `Clear ${doneCount} completed record${doneCount === 1 ? "" : "s"}`;
       if (!records.length) {
         const empty = document.createElement("p");
         empty.className = "empty";
@@ -163,6 +187,9 @@ INDEX_HTML = """<!doctype html>
         }
         article.append(list);
 
+        const actions = document.createElement("div");
+        actions.className = "record-actions";
+
         if (record.status === "media_failed") {
           const retry = document.createElement("button");
           retry.type = "button";
@@ -171,12 +198,34 @@ INDEX_HTML = """<!doctype html>
             await fetch(`/api/records/${encodeURIComponent(record.id)}/retry`, {method: "POST"});
             await load();
           });
-          article.append(retry);
+          actions.append(retry);
         }
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", async () => {
+          if (!confirm("Delete this mining record?")) return;
+          await fetch(`/api/records/${encodeURIComponent(record.id)}`, {method: "DELETE"});
+          await load();
+        });
+        actions.append(deleteButton);
+        article.append(actions);
 
         recordsEl.append(article);
       }
     }
+
+    clearDoneButton.addEventListener("click", async () => {
+      if (clearDoneButton.disabled) return;
+      if (!confirm("Clear all completed mining records?")) return;
+      await fetch("/api/records/clear-done", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: "{}",
+      });
+      await load();
+    });
 
     async function load() {
       const response = await fetch("/api/records");
@@ -227,6 +276,9 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/records":
             self._handle_create_record()
             return
+        if parsed.path == "/api/records/clear-done":
+            self._handle_clear_done()
+            return
 
         record_id, action = self._parse_record_action(parsed.path)
         if record_id is not None and action == "status":
@@ -236,6 +288,14 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
             self._handle_retry(record_id)
             return
 
+        self._send_not_found()
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        record_id = self._parse_record_id(parsed.path)
+        if record_id is not None:
+            self._handle_delete_record(record_id)
+            return
         self._send_not_found()
 
     def log_message(self, format: str, *args: object) -> None:
@@ -293,6 +353,26 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
             self._send_not_found()
             return
         self._send_json(record)
+
+    def _handle_delete_record(self, record_id: str) -> None:
+        try:
+            self.store.delete_record(record_id)
+        except KeyError:
+            self._send_not_found()
+            return
+        self._send_json({"deleted": 1})
+
+    def _handle_clear_done(self) -> None:
+        self._send_json({"deleted": self.store.clear_done_records()})
+
+    def _parse_record_id(self, path: str) -> str | None:
+        prefix = "/api/records/"
+        if not path.startswith(prefix):
+            return None
+        suffix = path[len(prefix) :]
+        if not suffix or "/" in suffix:
+            return None
+        return unquote(suffix)
 
     def _parse_record_action(self, path: str) -> tuple[str | None, str | None]:
         prefix = "/api/records/"
