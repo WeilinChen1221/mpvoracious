@@ -77,14 +77,14 @@ local report_creation_result = function(file_path, on_finish_fn)
     end
 end
 
-local create_snapshot = function(start_timestamp, end_timestamp, current_timestamp, filename, on_finish_fn)
+local create_snapshot = function(start_timestamp, end_timestamp, current_timestamp, filename, on_finish_fn, source_path)
     if h.is_empty(self.output_dir_path) then
         return msg.error("Output directory wasn't provided. Image file will not be created.")
     end
 
     -- Calls the proper function depending on whether or not the snapshot should be animated
     if not h.is_empty(self.config.image_field) then
-        local source_path = mp.get_property("path")
+        source_path = source_path or mp.get_property("path")
         local output_path = utils.join_path(self.output_dir_path, filename)
 
         local on_finish_wrap = report_creation_result(output_path, on_finish_fn)
@@ -105,13 +105,13 @@ local background_play = function(file_path, on_finish)
     }
 end
 
-local create_audio = function(start_timestamp, end_timestamp, filename, padding, on_finish_fn)
+local create_audio = function(start_timestamp, end_timestamp, filename, padding, on_finish_fn, source_path)
     if h.is_empty(self.output_dir_path) then
         return msg.error("Output directory wasn't provided. Audio file will not be created.")
     end
 
     if not h.is_empty(self.config.audio_field) then
-        local source_path = mp.get_property("path")
+        source_path = source_path or mp.get_property("path")
         local output_path = utils.join_path(self.output_dir_path, filename)
 
         if padding > 0 then
@@ -156,15 +156,17 @@ local create_job = function(job_type, sub, audio_padding)
     local current_timestamp, on_finish_fn
     local job = {}
     if job_type == 'snapshot' and h.has_video_track() and not h.is_empty(self.config.image_field) then
-        current_timestamp = mp.get_property_number("time-pos", 0)
+        current_timestamp = sub.snapshot_time or mp.get_property_number("time-pos", 0)
+        local source_path = sub.source_path or mp.get_property("path")
         job.filename = make_snapshot_filename(sub['start'], sub['end'], current_timestamp)
         job.run_async = function()
-            create_snapshot(sub['start'], sub['end'], current_timestamp, job.filename, on_finish_fn)
+            create_snapshot(sub['start'], sub['end'], current_timestamp, job.filename, on_finish_fn, source_path)
         end
     elseif job_type == 'audioclip' and h.has_audio_track() and not h.is_empty(self.config.audio_field) then
         job.filename = make_audio_filename(sub['start'], sub['end'])
+        local source_path = sub.source_path or mp.get_property("path")
         job.run_async = function()
-            create_audio(sub['start'], sub['end'], job.filename, audio_padding, on_finish_fn)
+            create_audio(sub['start'], sub['end'], job.filename, audio_padding, on_finish_fn, source_path)
         end
     else
         job.filename = nil
