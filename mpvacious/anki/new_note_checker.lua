@@ -120,7 +120,24 @@ local function make_anki_new_note_checker()
         end
     end
 
+    local function process_history_retries()
+        if h.is_empty(self.history_controller) or not self.history_controller.enabled() then
+            return
+        end
+        for _, record in ipairs(self.history_controller.records_waiting_for_retry()) do
+            self.history_controller.update_status(record.id, "matched_note", record.note_id, "")
+            self.update_history_note_fn(record.note_id, record, function(success, error)
+                if success then
+                    self.history_controller.update_status(record.id, "media_done", record.note_id, "")
+                else
+                    self.history_controller.update_status(record.id, "media_failed", record.note_id, error or "media retry failed")
+                end
+            end)
+        end
+    end
+
     local function check_for_new_notes()
+        process_history_retries()
         return find_notes_added_today(process_new_notes)
     end
 

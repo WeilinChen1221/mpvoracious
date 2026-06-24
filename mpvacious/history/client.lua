@@ -70,6 +70,10 @@ local function new(cfg_mgr)
         return get_sync('/api/pending?normalized_sentence=' .. escaped .. '&window_minutes=' .. tostring(cfg_mgr.query("mining_history_match_window_minutes")))
     end
 
+    function self.list_records()
+        return get_sync('/api/records')
+    end
+
     function self.update_status(record_id, status, note_id, error, completion_fn)
         return post('/api/records/' .. url_encode(record_id) .. '/status', {
             status = status,

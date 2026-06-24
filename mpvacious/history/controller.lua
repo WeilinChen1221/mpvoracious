@@ -60,6 +60,20 @@ local function new()
         end)
     end
 
+    function self.records_waiting_for_retry()
+        if not self.enabled() then
+            return {}
+        end
+        local parsed = self.client.list_records()
+        local ret = {}
+        for _, record in ipairs(parsed and parsed.records or {}) do
+            if record.status == "matched_note" and record.note_id ~= nil and record.error == "retry requested" then
+                table.insert(ret, record)
+            end
+        end
+        return ret
+    end
+
     return self
 end
 
