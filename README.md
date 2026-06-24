@@ -304,6 +304,7 @@ a            script-binding mpvacious-menu-open
 Ctrl+g       script-binding mpvacious-animated-snapshot-toggle
 
 Ctrl+n       script-binding mpvacious-export-note
+Ctrl+Shift+n script-binding mpvacious-send-to-mining-history
 
 Ctrl+b       script-binding mpvacious-update-selected-note
 Ctrl+B       script-binding mpvacious-overwrite-selected-note
@@ -343,6 +344,7 @@ For example, <kbd>Ctrl+M</kbd> actually means <kbd>Ctrl+Shift+m</kbd>.
 * [Quick card creation](howto/create_quick_card.md)
 * [Updating selected cards](howto/update_selected_card.md)
 * [Open the "Add" dialog](howto/add_dialog.md)
+* [Mining history](howto/mining_history.md)
 * [Usage with Rikaitan](howto/yomichan.md)
 * [Usage with GoldenDict](howto/goldendict.md)
 
