@@ -74,6 +74,14 @@ local function new()
         self.preview_timer = mp.add_periodic_timer(preview_poll_interval_seconds, self.handle_preview_request)
     end
 
+    function self.start_background()
+        if not self.enabled() or self.cfg_mgr.query("mining_history_autostart") ~= true then
+            return
+        end
+        self.server_process.ensure_running()
+        self.start_preview_timer()
+    end
+
     function self.capture_current()
         if not self.enabled() then
             return h.notify("Mining history is disabled.", "info", 2)

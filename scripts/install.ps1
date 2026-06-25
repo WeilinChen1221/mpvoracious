@@ -1,19 +1,19 @@
-# Install mpvacious using Powershell on Windows.
+# Install mpvoracious using Powershell on Windows.
 # Based on: https://github.com/tomasklaen/uosc/tree/b77c1f95a877979bd5acef63bad84b03275a18af/installers
 
 # Fetch the latest version from GitHub API
 try {
-    $LatestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Ajatt-Tools/mpvacious/releases/latest" -ErrorAction Stop
+    $LatestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/WeilinChen1221/mpvoracious/releases/latest" -ErrorAction Stop
     $LatestVersion = $LatestRelease.tag_name
-    $ZipURL = "https://github.com/Ajatt-Tools/mpvacious/releases/latest/download/mpvacious_$LatestVersion.zip"
+    $ZipURL = "https://github.com/WeilinChen1221/mpvoracious/releases/latest/download/mpvoracious_$LatestVersion.zip"
 } catch {
     # Abort if API request fails since we don't know URL to zip
     Write-Output "Error: Couldn't fetch the latest version from GitHub API."
     Write-Output "Aborting!"
     Exit 1
 }
-$ConfURL = "https://github.com/Ajatt-Tools/mpvacious/releases/latest/download/subs2srs.conf"
-$Files = "scripts/mpvacious", "scripts/subs2srs"
+$ConfURL = "https://github.com/WeilinChen1221/mpvoracious/releases/latest/download/subs2srs.conf"
+$Files = "scripts/mpvoracious", "scripts/mpvacious", "scripts/subs2srs"
 
 # Determine install directory
 if (Test-Path env:MPV_CONFIG_DIR) {
@@ -49,8 +49,8 @@ if (!(Test-Path $MpvScriptsDir)) {
 
 Write-Output "-> $ConfigDir"
 
-$BackupDir = "$ConfigDir/.mpvacious-backup"
-$ZipFile = "$ConfigDir/mpvacious_tmp.zip"
+$BackupDir = "$ConfigDir/.mpvoracious-backup"
+$ZipFile = "$ConfigDir/mpvoracious_tmp.zip"
 
 function DeleteIfExists($Path) {
 	if (Test-Path $Path) {
@@ -151,7 +151,7 @@ try {
 	}
 }
 catch {
-	Abort("Couldn't download the config file, but mpvacious should be installed correctly.")
+	Abort("Couldn't download the config file, but mpvoracious should be installed correctly.")
 }
 
-Write-Output "mpvacious has been installed."
+Write-Output "mpvoracious has been installed."

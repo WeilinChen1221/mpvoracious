@@ -142,6 +142,7 @@ this.defaults = {
 
     -- Mining history
     mining_history_enabled = true,
+    mining_history_autostart = true,
     mining_history_key = "Ctrl+Shift+n",
     mining_history_url = "http://127.0.0.1:44765",
     mining_history_open_browser = true,

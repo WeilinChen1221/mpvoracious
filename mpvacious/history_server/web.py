@@ -16,7 +16,7 @@ INDEX_HTML = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mpvacious Mining History</title>
+  <title>Mpvoracious Mining History</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -119,7 +119,7 @@ INDEX_HTML = """<!doctype html>
 </head>
 <body>
   <header>
-    <h1>Mpvacious Mining History</h1>
+    <h1>Mpvoracious Mining History</h1>
     <div class="toolbar">
       <button id="clear-done" type="button">Clear Done</button>
       <button id="clear-all" type="button">Clear All</button>
@@ -470,7 +470,7 @@ def make_server(host: str, port: int, store: HistoryStore) -> ThreadingHTTPServe
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Serve mpvacious mining history")
+    parser = argparse.ArgumentParser(description="Serve mpvoracious mining history")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=44765)
     parser.add_argument("--db", type=Path)

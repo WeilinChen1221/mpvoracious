@@ -12,7 +12,7 @@ Make these changes in Flatseal:
   so it could see `wl-copy`.
   Unfortunately, there's no option to provide only a specific system file.
 * Add `~/.var/app/net.ankiweb.Anki` to "Filesystem > Other Files"
-  so mpvacious could add encoded snapshots and audio to Anki.
+  so mpvoracious could add encoded snapshots and audio to Anki.
 * Add `PATH=/home/USERNAME/.local/bin:/home/USERNAME/bin:/app/bin:/usr/bin:/run/host/usr/bin` to "Environment > Variables".
   There's no option to add a path to `PATH` in Flatseal,
   so I opened container,

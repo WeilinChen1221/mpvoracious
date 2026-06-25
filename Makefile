@@ -1,4 +1,5 @@
-PROJECT     := mpvacious
+PROJECT     := mpvoracious
+SOURCE_DIR  := mpvacious
 PACKAGE     := subs2srs
 # PREFIX is a path to the mpv config directory,
 # e.g. ~/.config/mpv/ or $pkgdir/etc/mpv when using PKGBUILD
@@ -10,9 +11,9 @@ ZIP         := $(RELEASE_DIR)/$(PROJECT)_$(VERSION).zip
 DOCS        := $(RELEASE_DIR)/README_$(VERSION).html
 MD2HTML      = md2html --github --full-html
 
-EXAMPLE_CONFIG      := $(PROJECT)/config/default_config.conf
+EXAMPLE_CONFIG      := $(SOURCE_DIR)/config/default_config.conf
 EXAMPLE_CONFIG_COPY := $(RELEASE_DIR)/$(PACKAGE).conf
-VERSION_FILE        := $(PROJECT)/version.json
+VERSION_FILE        := $(SOURCE_DIR)/version.json
 
 .PHONY: all docs install uninstall clean version
 
@@ -28,7 +29,7 @@ $(ZIP):
 	--prefix=$(PROJECT)/ \
 	--format=zip \
 	--output $@ \
-	"$(BRANCH):$(PROJECT)"
+	"$(BRANCH):$(SOURCE_DIR)"
 
 $(EXAMPLE_CONFIG_COPY): $(EXAMPLE_CONFIG)
 	cp -- "$<" "$@"
@@ -40,7 +41,7 @@ install: version
 	@echo "Installing $(PROJECT) to $(PREFIX)/scripts/$(PROJECT)/"
 	install -d "$(PREFIX)/scripts/$(PROJECT)/"
 	# Copy directory contents preserving attributes
-	cp -a -- "./$(PROJECT)" "$(PREFIX)/scripts/"
+	cp -a -- "./$(SOURCE_DIR)/." "$(PREFIX)/scripts/$(PROJECT)/"
 	if [ ! -f "$(PREFIX)/script-opts/$(PACKAGE).conf" ]; then \
 		install -Dm644 "$(EXAMPLE_CONFIG)" "$(PREFIX)/script-opts/$(PACKAGE).conf"; \
 	fi

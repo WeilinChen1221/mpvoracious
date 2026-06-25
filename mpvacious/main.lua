@@ -29,10 +29,10 @@ Usage:
 2. Open a video
 
 3. Use key bindings to manipulate the script
-* Open mpvacious menu - `a`
+* Open mpvoracious menu - `a`
 * Create a note from the current subtitle line - `Ctrl + n`
 
-For complete usage guide, see <https://github.com/Ajatt-Tools/mpvacious/blob/master/README.md>
+For complete usage guide, see <https://github.com/WeilinChen1221/mpvoracious/blob/master/README.md>
 ]]
 
 local mp = require('mp')
@@ -280,7 +280,7 @@ function menu:print_legend(osd)
 end
 
 function menu:print_header(osd)
-    osd:submenu('mpvacious options'):newline()
+    osd:submenu('mpvoracious options'):newline()
     osd:item('Timings: '):text(h.human_readable_time(subs_observer.get_timing('start')))
     osd:item(' to '):text(h.human_readable_time(subs_observer.get_timing('end'))):newline()
     osd:item('Autocopy: '):text(subs_observer.autocopy_is_enabled_str()):item(" ["):text(subs_observer.autocopy_current_method_str()):item("]"):newline()
@@ -296,7 +296,7 @@ function menu:warn_formats(osd)
             if not supported and cfg_mgr.query(type .. '_codec') == codec then
                 osd:red('Warning: '):newline()
                 osd:tab():text(string.format("your version of %s does not support %s.", prog_name, codec)):newline()
-                osd:tab():text(string.format("mpvacious won't be able to create %s files.", type)):newline()
+                osd:tab():text(string.format("mpvoracious won't be able to create %s files.", type)):newline()
             end
         end
     end
@@ -620,6 +620,7 @@ local main = (function()
         ensure_deck()
         subs_observer.init(menu, cfg_mgr)
         history_controller.init(cfg_mgr, subs_observer)
+        history_controller.start_background()
         note_exporter.init(ankiconnect, quick_creation_opts, subs_observer, encoder, forvo, cfg_mgr)
         new_note_checker.init(
                 ankiconnect,
@@ -632,12 +633,11 @@ local main = (function()
 
         add_history_global_binding()
         global_binds_menu:add_global_bindings()
-        mp.msg.warn("Press 'a' to open the mpvacious menu.")
+        mp.msg.warn("Press 'a' to open the mpvoracious menu.")
         release_checker.init(cfg_mgr)
 
         -- start timer
         new_note_checker.start_timer()
-        history_controller.start_preview_timer()
     end
 end)()
 

@@ -1,13 +1,14 @@
 #!/bin/bash
 
-# This script is used to install mpvacious in a development mode.
-# It just symlinks the mpvacious directory to ~/.config/mpv/scripts
+# This script is used to install mpvoracious in development mode.
+# It symlinks the source directory to ~/.config/mpv/scripts/mpvoracious.
 # This way, when you change *.lua files, the changes will be applied immediately after restarting mpv.
 
 # Exit immediately if a command exits with a non-zero status
 set -euo pipefail
 
-prog=mpvacious
+prog=mpvoracious
+source_dir=mpvacious
 mpv_config_dir=~/.config/mpv
 
 die() {
@@ -63,14 +64,14 @@ delete_existing_installation() {
 }
 
 main() {
-	[[ -d $prog ]] || die "Directory does not exist: $prog"
+	[[ -d $source_dir ]] || die "Directory does not exist: $source_dir"
 	set_mpv_config_dir
 	mkdir -p -- "$mpv_config_dir/scripts" || die "Couldn't create mpv scripts directory."
 	echo "Removing existing installation..."
 	install_dest="$mpv_config_dir/scripts/$prog"
 	delete_existing_installation
 	echo "Linking directory..."
-	ln -srf "./$prog" "$install_dest" || die "Couldn't symlink: $install_dest"
+	ln -srf "./$source_dir" "$install_dest" || die "Couldn't symlink: $install_dest"
 	echo "${prog} has been installed in development mode."
 }
 

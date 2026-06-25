@@ -45,7 +45,7 @@ jobs:
           generate_release_notes: true
           append_body: true
           body_path: .github/RELEASE/release-boilerplate.md
-          name: "mpvacious ${{github.ref_name}}"
+          name: "mpvoracious ${{github.ref_name}}"
           files: |
             .github/RELEASE/*.zip
             .github/RELEASE/*.conf

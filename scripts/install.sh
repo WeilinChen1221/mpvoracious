@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Install mpvacious using Bash on GNU/Linux or macOS.
+# Install mpvoracious using Bash on GNU/Linux or macOS.
 # Based on: https://github.com/tomasklaen/uosc/tree/b77c1f95a877979bd5acef63bad84b03275a18af/installers
 
 # Exit immediately if a command exits with a non-zero status
 set -euo pipefail
 
-prog=mpvacious
+prog=mpvoracious
 package=subs2srs
 zip_file=/tmp/${prog}.zip
-install_targets=("scripts/${prog}" "scripts/${package}")
+install_targets=("scripts/${prog}" "scripts/mpvacious" "scripts/${package}")
 dependencies=(curl unzip)
 mpv_config_dir=~/.config/mpv
 latest_version=v0.0.0
@@ -48,7 +48,7 @@ die() {
 }
 
 set_latest_version() {
-	local -r api_url="https://api.github.com/repos/Ajatt-Tools/mpvacious/releases/latest"
+	local -r api_url="https://api.github.com/repos/WeilinChen1221/mpvoracious/releases/latest"
 	latest_version=$(
 		curl -Ls "$api_url" |
 			grep -Po '"tag_name":\s*"\K[^"]+(?=")'
@@ -103,7 +103,7 @@ set_mpv_config_dir() {
 	fi
 }
 
-backup_existing_mpvacious_installation() {
+backup_existing_mpvoracious_installation() {
 	echo "Backing up..."
 	rm -rf -- "$backup_dir" || die "Couldn't cleanup backup directory."
 	for target in "${install_targets[@]}"; do
@@ -136,9 +136,9 @@ main() {
 
 	set_latest_version
 
-	# Example: https://github.com/Ajatt-Tools/mpvacious/releases/download/v26.1.26.0/mpvacious_v26.1.26.0.zip
-	local -r zip_url="https://github.com/Ajatt-Tools/${prog}/releases/latest/download/${prog}_${latest_version}.zip"
-	local -r conf_url="https://github.com/Ajatt-Tools/${prog}/releases/latest/download/${package}.conf"
+	# Example: https://github.com/WeilinChen1221/mpvoracious/releases/download/v26.6.25.0/mpvoracious_v26.6.25.0.zip
+	local -r zip_url="https://github.com/WeilinChen1221/${prog}/releases/latest/download/${prog}_${latest_version}.zip"
+	local -r conf_url="https://github.com/WeilinChen1221/${prog}/releases/latest/download/${package}.conf"
 
 	set_mpv_config_dir
 
@@ -154,7 +154,7 @@ main() {
 	echo "→ $mpv_config_dir"
 	mkdir -p -- "$mpv_config_dir/scripts" || die "Couldn't create mpv scripts directory."
 
-	backup_existing_mpvacious_installation
+	backup_existing_mpvoracious_installation
 
 	# Install new version
 	echo "Downloading archive..."

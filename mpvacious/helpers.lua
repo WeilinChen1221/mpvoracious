@@ -474,7 +474,7 @@ function this.join_two_sorted_lists(a1, a2)
 end
 
 function this.find_mpv_scripts_dir()
-    local this_dir = mp.get_script_directory() -- this_dir points to ~/.config/mpv/scripts/mpvacious (where mpvacious is installed)
+    local this_dir = mp.get_script_directory() -- this_dir points to the installed script directory
     local scripts_dir, _ = utils.split_path(this_dir) -- scripts_dir points to  ~/.config/mpv/scripts/
     return scripts_dir:gsub("/$", "")
 end
@@ -511,13 +511,20 @@ local function searchpath_lua51_fallback(name, path)
 end
 
 function this.maybe_require(module_name)
-    --- Example: ~/.config/mpv/scripts/mpvacious_custom_subtitle_filter/custom_subtitle_filter.lua
+    --- Example: ~/.config/mpv/scripts/mpvoracious_custom_subtitle_filter/custom_subtitle_filter.lua
 
-    -- Make path to directory ~/.config/mpv/scripts/mpvacious_custom_subtitle_filter
-    local external_scripts_path = utils.join_path(this.find_mpv_scripts_dir(), "mpvacious_" .. module_name)
-    local search_template = external_scripts_path .. "/?.lua;"
     local searchpath = package.searchpath or searchpath_lua51_fallback
-    local module_path = searchpath(module_name, search_template)
+    local search_template
+    local module_path
+    for _, prefix in ipairs({ "mpvoracious_", "mpvacious_" }) do
+        local external_scripts_path = utils.join_path(this.find_mpv_scripts_dir(), prefix .. module_name)
+        local candidate_template = external_scripts_path .. "/?.lua;"
+        module_path = searchpath(module_name, candidate_template)
+        if module_path then
+            search_template = candidate_template
+            break
+        end
+    end
 
     if not module_path then
         return nil
@@ -635,13 +642,18 @@ end
 function this.find_mpvacious_dir()
     -- The fallback path will be valid if the project folder is placed
     -- in mpv's scripts directory (e.g. ~/.config/mpv/scripts).
-    -- This does not apply to normal installations of mpvacious.
+    -- This does not apply to normal installations of mpvoracious.
     -- https://github.com/mpv-player/mpv/blob/master/DOCS/man/lua.rst#mputils-functions
     local default_path = mp.get_script_directory()
     -- test if version file is present
     local info = utils.file_info(utils.join_path(default_path, "version.json"))
     if info and info.is_file then
         return default_path
+    end
+    local mpvoracious_path = utils.join_path(mp.get_script_directory(), "mpvoracious")
+    info = utils.file_info(utils.join_path(mpvoracious_path, "version.json"))
+    if info and info.is_file then
+        return mpvoracious_path
     end
     return utils.join_path(mp.get_script_directory(), "mpvacious")
 end

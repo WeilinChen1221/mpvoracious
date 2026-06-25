@@ -107,7 +107,7 @@ def test_health_records_pending_status_and_index(tmp_path: Path) -> None:
         with urllib.request.urlopen(server.base_url + "/", timeout=5) as response:
             html = response.read().decode("utf-8")
         assert '<main id="records"' in html
-        assert "Mpvacious Mining History" in html
+        assert "Mpvoracious Mining History" in html
     finally:
         server.close()
 

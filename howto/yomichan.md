@@ -15,7 +15,7 @@ You can use it in combination with clipboard monitor.
 2) Play a video in `mpv`.
 3) When you find an unknown word, click the <kbd>+</kbd> button to make a card for it.
 4) If you have the [new note timer](../README.md#new-note-timer) enabled,
-   mpvacious will automatically add media to your card.
+   mpvoracious will automatically add media to your card.
 
    Otherwise,
    go back to mpv and add an image and an audio clip

@@ -1,12 +1,12 @@
---- mpvacious Custom Subtitle Filter Example
+--- mpvoracious Custom Subtitle Filter Example
 --- This script filters bilingual (JP/CN) subtitles to extract only the Japanese lines.
 --- Based on Kana detection, as both languages share Kanji.
 ---
 --- To enable this feature:
 --- 1. Rename this file to 'custom_subtitle_filter.lua'.
---- 2. Place it in '~/.config/mpv/scripts/mpvacious_custom_subtitle_filter/'.
+--- 2. Place it in '~/.config/mpv/scripts/mpvoracious_custom_subtitle_filter/'.
 --- 3. Create a dummy 'main.lua' in the same folder (it can be empty).
---- Note: This file is a custom plugin for mpvacious, not a standalone mpv script.
+--- Note: This file is a custom plugin for mpvoracious, not a standalone mpv script.
 local M = {}
 
 -- Plugin State
@@ -188,13 +188,13 @@ end
 -- Exported Functions (Plugin Interface)
 -------------------------------------------------------------------------------
 
---- Main preprocessing function called by mpvacious.
+--- Main preprocessing function called by mpvoracious.
 M.preprocess = function(text)
     return extract_japanese_only(text)
 end
 
 --- Custom trim function.
---- Overrides the internal mpvacious trimmer if uncommented.
+--- Overrides the internal mpvoracious trimmer if uncommented.
 --- The internal trimmer is controlled by `clipboard_trim_enabled=yes` 
 --- in your `subs2srs.conf`.
 -- M.trim = function(text)

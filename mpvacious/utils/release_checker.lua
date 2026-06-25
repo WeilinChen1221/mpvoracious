@@ -14,7 +14,7 @@ local function make_release_checker()
     local private = {}
     local public = {}
 
-    private.repo = "Ajatt-Tools/mpvacious"
+    private.repo = "WeilinChen1221/mpvoracious"
     private.max_time_sec = 20
     private.check_delay_sec = 5
     private.api_check_url = "https://api.github.com/repos/" .. private.repo .. "/releases/latest"

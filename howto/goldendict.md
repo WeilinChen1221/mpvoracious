@@ -32,13 +32,13 @@ they will be immediately sent to GoldenDict instead of the system clipboard.
    right-click and select "send word to anki" to make a card,
    or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>.
 4) If you have the [new note timer](../README.md#new-note-timer) enabled,
-   mpvacious will automatically add media to your card.
+   mpvoracious will automatically add media to your card.
 
    Otherwise, go back to mpv and add an image and an audio clip
    to the card you've just made by pressing <kbd>m</kbd> while the `advanced menu` is open.
    Pressing <kbd>Shift+m</kbd> will overwrite any existing data in media fields.
 
-https://github.com/Ajatt-Tools/mpvacious/assets/69171671/0fc02d24-d320-4d2c-b7a9-cb478e9f0067
+https://github.com/WeilinChen1221/mpvoracious
 
 Don't forget to set the right timings and join lines together
 if the sentence is split between multiple subs.

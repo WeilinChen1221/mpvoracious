@@ -1,7 +1,7 @@
 [project]
-name = "mpvacious-history-server"
+name = "mpvoracious-history-server"
 version = "0.1.0"
-description = "Local mining history helper for mpvacious"
+description = "Local mining history helper for mpvoracious"
 readme = "../README.md"
 requires-python = ">=3.11"
 dependencies = []
