@@ -113,3 +113,30 @@ def test_clear_done_records_removes_only_completed_media(tmp_path: Path) -> None
 
     assert deleted == 1
     assert {record["id"] for record in store.list_records()} == {"pending", "failed"}
+
+
+def test_clear_all_records_removes_records_and_pending_preview(tmp_path: Path) -> None:
+    store = HistoryStore(tmp_path / "history.sqlite3")
+    store.add_record(make_record("first"))
+    store.add_record(make_record("second"))
+    store.queue_preview("first")
+
+    deleted = store.clear_all_records()
+
+    assert deleted == 2
+    assert store.list_records() == []
+    assert store.consume_preview_request() is None
+
+
+def test_preview_request_is_consumed_once(tmp_path: Path) -> None:
+    store = HistoryStore(tmp_path / "history.sqlite3")
+    store.add_record(make_record("rec-1"))
+
+    queued = store.queue_preview("rec-1")
+    first = store.consume_preview_request()
+    second = store.consume_preview_request()
+
+    assert queued["id"] == "rec-1"
+    assert first is not None
+    assert first["id"] == "rec-1"
+    assert second is None

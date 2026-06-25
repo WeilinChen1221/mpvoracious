@@ -154,3 +154,37 @@ def test_clear_done_endpoint_removes_only_completed_media(tmp_path: Path) -> Non
         }
     finally:
         server.close()
+
+
+def test_clear_all_endpoint_removes_every_record(tmp_path: Path) -> None:
+    server = WebTestServer(tmp_path / "history.sqlite3")
+    try:
+        request_json(server, "/api/records", make_record("first"))
+        request_json(server, "/api/records", make_record("second"))
+        request_json(server, "/api/records/first/preview", {})
+
+        deleted = request_json(server, "/api/records/clear-all", {})
+
+        assert deleted == {"deleted": 2}
+        records_response = request_json(server, "/api/records")
+        assert records_response["records"] == []
+        preview_response = request_json(server, "/api/preview")
+        assert preview_response == {"record": None}
+    finally:
+        server.close()
+
+
+def test_preview_endpoint_queues_consumable_record(tmp_path: Path) -> None:
+    server = WebTestServer(tmp_path / "history.sqlite3")
+    try:
+        request_json(server, "/api/records", make_record("rec-1"))
+
+        queued = request_json(server, "/api/records/rec-1/preview", {})
+        first_preview = request_json(server, "/api/preview")
+        second_preview = request_json(server, "/api/preview")
+
+        assert queued["record"]["id"] == "rec-1"
+        assert first_preview["record"]["id"] == "rec-1"
+        assert second_preview == {"record": None}
+    finally:
+        server.close()

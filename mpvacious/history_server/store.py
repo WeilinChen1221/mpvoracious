@@ -65,6 +65,15 @@ class HistoryStore:
                 ON records (sequence)
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS preview_requests (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    record_id TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                )
+                """
+            )
             conn.execute("DROP INDEX IF EXISTS idx_records_pending_match")
             conn.execute(
                 """
@@ -209,11 +218,56 @@ class HistoryStore:
             cursor = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
             if cursor.rowcount == 0:
                 raise KeyError(record_id)
+            conn.execute("DELETE FROM preview_requests WHERE record_id = ?", (record_id,))
 
     def clear_done_records(self) -> int:
         with self._connect() as conn:
             cursor = conn.execute("DELETE FROM records WHERE status = 'media_done'")
+            conn.execute(
+                """
+                DELETE FROM preview_requests
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM records WHERE records.id = preview_requests.record_id
+                )
+                """
+            )
             return cursor.rowcount
+
+    def clear_all_records(self) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM records")
+            conn.execute("DELETE FROM preview_requests")
+            return cursor.rowcount
+
+    def queue_preview(self, record_id: str) -> dict[str, Any]:
+        record = self.get_record(record_id)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO preview_requests (id, record_id, created_at)
+                VALUES (1, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    record_id = excluded.record_id,
+                    created_at = excluded.created_at
+                """,
+                (record_id, time.time()),
+            )
+        return record
+
+    def consume_preview_request(self) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            request = conn.execute(
+                "SELECT record_id FROM preview_requests WHERE id = 1"
+            ).fetchone()
+            if request is None:
+                return None
+            conn.execute("DELETE FROM preview_requests WHERE id = 1")
+            record = conn.execute(
+                "SELECT * FROM records WHERE id = ?",
+                (request["record_id"],),
+            ).fetchone()
+        return dict(record) if record is not None else None
 
     def retry_record(self, record_id: str) -> dict[str, Any]:
         record = self.get_record(record_id)

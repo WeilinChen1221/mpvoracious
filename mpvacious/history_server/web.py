@@ -48,6 +48,8 @@ INDEX_HTML = """<!doctype html>
     }
     .toolbar {
       display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
       justify-content: flex-end;
       margin-top: 14px;
     }
@@ -120,12 +122,14 @@ INDEX_HTML = """<!doctype html>
     <h1>Mpvacious Mining History</h1>
     <div class="toolbar">
       <button id="clear-done" type="button">Clear Done</button>
+      <button id="clear-all" type="button">Clear All</button>
     </div>
   </header>
   <main id="records" aria-live="polite"></main>
   <script>
     const recordsEl = document.querySelector("#records");
     const clearDoneButton = document.querySelector("#clear-done");
+    const clearAllButton = document.querySelector("#clear-all");
 
     function text(value) {
       return value === null || value === undefined || value === "" ? "-" : String(value);
@@ -154,6 +158,8 @@ INDEX_HTML = """<!doctype html>
       const doneCount = records.filter((record) => record.status === "media_done").length;
       clearDoneButton.disabled = doneCount === 0;
       clearDoneButton.title = doneCount === 0 ? "No completed records to clear" : `Clear ${doneCount} completed record${doneCount === 1 ? "" : "s"}`;
+      clearAllButton.disabled = records.length === 0;
+      clearAllButton.title = records.length === 0 ? "No records to clear" : `Clear all ${records.length} record${records.length === 1 ? "" : "s"}`;
       if (!records.length) {
         const empty = document.createElement("p");
         empty.className = "empty";
@@ -190,6 +196,14 @@ INDEX_HTML = """<!doctype html>
         const actions = document.createElement("div");
         actions.className = "record-actions";
 
+        const previewButton = document.createElement("button");
+        previewButton.type = "button";
+        previewButton.textContent = "Preview";
+        previewButton.addEventListener("click", async () => {
+          await fetch(`/api/records/${encodeURIComponent(record.id)}/preview`, {method: "POST"});
+        });
+        actions.append(previewButton);
+
         if (record.status === "media_failed") {
           const retry = document.createElement("button");
           retry.type = "button";
@@ -220,6 +234,17 @@ INDEX_HTML = """<!doctype html>
       if (clearDoneButton.disabled) return;
       if (!confirm("Clear all completed mining records?")) return;
       await fetch("/api/records/clear-done", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: "{}",
+      });
+      await load();
+    });
+
+    clearAllButton.addEventListener("click", async () => {
+      if (clearAllButton.disabled) return;
+      if (!confirm("Clear all mining records?")) return;
+      await fetch("/api/records/clear-all", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: "{}",
@@ -269,6 +294,9 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/pending":
             self._handle_pending(parsed.query)
             return
+        if parsed.path == "/api/preview":
+            self._handle_consume_preview()
+            return
         self._send_not_found()
 
     def do_POST(self) -> None:
@@ -279,6 +307,9 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/records/clear-done":
             self._handle_clear_done()
             return
+        if parsed.path == "/api/records/clear-all":
+            self._handle_clear_all()
+            return
 
         record_id, action = self._parse_record_action(parsed.path)
         if record_id is not None and action == "status":
@@ -286,6 +317,9 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
             return
         if record_id is not None and action == "retry":
             self._handle_retry(record_id)
+            return
+        if record_id is not None and action == "preview":
+            self._handle_queue_preview(record_id)
             return
 
         self._send_not_found()
@@ -364,6 +398,20 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_clear_done(self) -> None:
         self._send_json({"deleted": self.store.clear_done_records()})
+
+    def _handle_clear_all(self) -> None:
+        self._send_json({"deleted": self.store.clear_all_records()})
+
+    def _handle_queue_preview(self, record_id: str) -> None:
+        try:
+            record = self.store.queue_preview(record_id)
+        except KeyError:
+            self._send_not_found()
+            return
+        self._send_json({"record": record})
+
+    def _handle_consume_preview(self) -> None:
+        self._send_json({"record": self.store.consume_preview_request()})
 
     def _parse_record_id(self, path: str) -> str | None:
         prefix = "/api/records/"

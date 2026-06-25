@@ -637,6 +637,7 @@ local main = (function()
 
         -- start timer
         new_note_checker.start_timer()
+        history_controller.start_preview_timer()
     end
 end)()
 

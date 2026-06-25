@@ -74,6 +74,10 @@ local function new(cfg_mgr)
         return get_sync('/api/records')
     end
 
+    function self.consume_preview()
+        return get_sync('/api/preview')
+    end
+
     function self.update_status(record_id, status, note_id, error, completion_fn)
         return post('/api/records/' .. url_encode(record_id) .. '/status', {
             status = status,
