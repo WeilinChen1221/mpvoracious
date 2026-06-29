@@ -304,6 +304,9 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/records":
             self._handle_create_record()
             return
+        if parsed.path == "/api/claims":
+            self._handle_claim()
+            return
         if parsed.path == "/api/records/clear-done":
             self._handle_clear_done()
             return
@@ -359,6 +362,22 @@ class HistoryRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
         self._send_json(record, HTTPStatus.CREATED)
+
+    def _handle_claim(self) -> None:
+        payload = self._read_json()
+        if not isinstance(payload, dict):
+            self._send_json({"error": "JSON object required"}, HTTPStatus.BAD_REQUEST)
+            return
+        try:
+            result = self.store.claim_note(
+                note_id=int(payload["note_id"]),
+                normalized_sentence=str(payload["normalized_sentence"]),
+                window_minutes=int(payload["window_minutes"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        self._send_json(result)
 
     def _handle_update_status(self, record_id: str) -> None:
         payload = self._read_json()

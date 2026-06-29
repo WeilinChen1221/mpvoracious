@@ -112,6 +112,34 @@ def test_health_records_pending_status_and_index(tmp_path: Path) -> None:
         server.close()
 
 
+def test_claim_endpoint_reuses_record_and_rejects_duplicate_worker(
+    tmp_path: Path,
+) -> None:
+    server = WebTestServer(tmp_path / "history.sqlite3")
+    try:
+        request_json(server, "/api/records", make_record())
+        payload = {
+            "note_id": 1001,
+            "normalized_sentence": "これはペンです。",
+            "window_minutes": 120,
+        }
+
+        first = request_json(server, "/api/claims", payload)
+        duplicate = request_json(server, "/api/claims", payload)
+        payload["note_id"] = 1002
+        second_card = request_json(server, "/api/claims", payload)
+        payload.update(note_id=1003, normalized_sentence="一致しません")
+        unmatched = request_json(server, "/api/claims", payload)
+
+        assert first["status"] == "claimed"
+        assert first["record"]["video_path"] == "/tmp/video.mkv"
+        assert duplicate == {"status": "already_claimed", "record": None}
+        assert second_card["record"]["id"] == "rec-1"
+        assert unmatched == {"status": "unmatched", "record": None}
+    finally:
+        server.close()
+
+
 def test_delete_record_endpoint_removes_one_record(tmp_path: Path) -> None:
     server = WebTestServer(tmp_path / "history.sqlite3")
     try:
