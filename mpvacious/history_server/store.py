@@ -67,6 +67,27 @@ class HistoryStore:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS note_claims (
+                    note_id INTEGER PRIMARY KEY,
+                    record_id TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_note_claims_record
+                ON note_claims (record_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_records_match
+                ON records (normalized_sentence, created_at DESC, sequence DESC)
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS preview_requests (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     record_id TEXT NOT NULL,
@@ -187,6 +208,40 @@ class HistoryStore:
             ).fetchone()
         return dict(row) if row is not None else None
 
+    def claim_note(
+        self,
+        note_id: int,
+        normalized_sentence: str,
+        window_minutes: int,
+    ) -> dict[str, Any]:
+        if note_id <= 0 or not normalized_sentence or window_minutes < 0:
+            raise ValueError("invalid note claim")
+        cutoff = time.time() - (window_minutes * 60)
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            claimed = conn.execute(
+                "SELECT 1 FROM note_claims WHERE note_id = ?",
+                (note_id,),
+            ).fetchone()
+            if claimed is not None:
+                return {"status": "already_claimed", "record": None}
+            record = conn.execute(
+                """
+                SELECT * FROM records
+                WHERE normalized_sentence = ? AND created_at >= ?
+                ORDER BY created_at DESC, sequence DESC
+                LIMIT 1
+                """,
+                (normalized_sentence, cutoff),
+            ).fetchone()
+            if record is None:
+                return {"status": "unmatched", "record": None}
+            conn.execute(
+                "INSERT INTO note_claims (note_id, record_id, created_at) VALUES (?, ?, ?)",
+                (note_id, record["id"], time.time()),
+            )
+            return {"status": "claimed", "record": dict(record)}
+
     def update_status(
         self,
         record_id: str,
@@ -215,6 +270,7 @@ class HistoryStore:
 
     def delete_record(self, record_id: str) -> None:
         with self._connect() as conn:
+            conn.execute("DELETE FROM note_claims WHERE record_id = ?", (record_id,))
             cursor = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
             if cursor.rowcount == 0:
                 raise KeyError(record_id)
@@ -222,6 +278,12 @@ class HistoryStore:
 
     def clear_done_records(self) -> int:
         with self._connect() as conn:
+            conn.execute(
+                """
+                DELETE FROM note_claims
+                WHERE record_id IN (SELECT id FROM records WHERE status = 'media_done')
+                """
+            )
             cursor = conn.execute("DELETE FROM records WHERE status = 'media_done'")
             conn.execute(
                 """
@@ -235,6 +297,7 @@ class HistoryStore:
 
     def clear_all_records(self) -> int:
         with self._connect() as conn:
+            conn.execute("DELETE FROM note_claims")
             cursor = conn.execute("DELETE FROM records")
             conn.execute("DELETE FROM preview_requests")
             return cursor.rowcount

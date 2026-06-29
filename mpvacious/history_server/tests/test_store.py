@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -44,6 +46,38 @@ def test_newest_unmatched_duplicate_wins(tmp_path: Path) -> None:
     match = store.find_pending_by_normalized_sentence("これはペンです。", window_minutes=120)
     assert match is not None
     assert match["id"] == "new"
+
+
+def test_different_notes_reuse_the_same_history_record(tmp_path: Path) -> None:
+    store = HistoryStore(tmp_path / "history.sqlite3")
+    store.add_record(make_record())
+
+    first = store.claim_note(1001, "これはペンです。", window_minutes=120)
+    store.update_status("rec-1", status="media_done", note_id=1001, error="")
+    second = store.claim_note(1002, "これはペンです。", window_minutes=120)
+
+    assert first["status"] == "claimed"
+    assert second["status"] == "claimed"
+    assert first["record"]["video_path"] == "/tmp/video.mkv"
+    assert second["record"]["id"] == "rec-1"
+
+
+def test_note_is_claimed_once_across_concurrent_workers(tmp_path: Path) -> None:
+    store = HistoryStore(tmp_path / "history.sqlite3")
+    store.add_record(make_record())
+    barrier = threading.Barrier(2)
+
+    def claim() -> dict[str, object]:
+        barrier.wait()
+        return store.claim_note(1001, "これはペンです。", window_minutes=120)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: claim(), range(2)))
+
+    assert sorted(result["status"] for result in results) == [
+        "already_claimed",
+        "claimed",
+    ]
 
 
 def test_insertion_order_breaks_created_at_ties(
@@ -126,6 +160,26 @@ def test_clear_all_records_removes_records_and_pending_preview(tmp_path: Path) -
     assert deleted == 2
     assert store.list_records() == []
     assert store.consume_preview_request() is None
+
+
+@pytest.mark.parametrize("removal", ["delete", "clear_done", "clear_all"])
+def test_removing_records_releases_their_note_claims(
+    tmp_path: Path, removal: str
+) -> None:
+    store = HistoryStore(tmp_path / "history.sqlite3")
+    store.add_record(make_record())
+    assert store.claim_note(1001, "これはペンです。", 120)["status"] == "claimed"
+
+    if removal == "delete":
+        store.delete_record("rec-1")
+    elif removal == "clear_done":
+        store.update_status("rec-1", "media_done", 1001, "")
+        store.clear_done_records()
+    else:
+        store.clear_all_records()
+
+    store.add_record(make_record())
+    assert store.claim_note(1001, "これはペンです。", 120)["status"] == "claimed"
 
 
 def test_preview_request_is_consumed_once(tmp_path: Path) -> None:
