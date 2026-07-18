@@ -8,7 +8,7 @@ Creates image and audio filenames compatible with Anki.
 local mp = require('mp')
 local h = require('helpers')
 
-local filename
+local filename = 'media'
 
 local anki_compatible_length = (function()
     -- Anki forcibly mutilates all filenames longer than 119 bytes when you run `Tools->Check Media...`.
@@ -34,9 +34,12 @@ local anki_compatible_length = (function()
     end
 end)()
 
-local make_media_filename = function()
-    filename = mp.get_property("filename") -- filename without path
-    filename = h.remove_extension(filename)
+local sanitize_filename = function(source_filename)
+    local sanitized = source_filename or 'media'
+    if h.is_empty(sanitized) then
+        sanitized = 'media'
+    end
+    sanitized = h.remove_extension(sanitized)
 
     local operations = {
         h.remove_filename_text_in_parentheses,
@@ -44,11 +47,16 @@ local make_media_filename = function()
         h.remove_special_characters
     }
     for _, f in ipairs(operations) do
-        local temp_filename = f(filename)
+        local temp_filename = f(sanitized)
         if temp_filename ~= "" then
-            filename = temp_filename
+            sanitized = temp_filename
         end
     end
+    return sanitized
+end
+
+local make_media_filename = function()
+    filename = sanitize_filename(mp.get_property("filename"))
 end
 
 local function timestamp_range(start_timestamp, end_timestamp, extension)
@@ -78,8 +86,15 @@ local make_filename = function(...)
     return string.lower(anki_compatible_length(filename, timestamp) .. timestamp)
 end
 
+local make_filename_from = function(source_filename, ...)
+    local args = {...}
+    local timestamp = #args < 3 and timestamp_static(...) or timestamp_range(...)
+    return string.lower(anki_compatible_length(sanitize_filename(source_filename), timestamp) .. timestamp)
+end
+
 mp.register_event("file-loaded", make_media_filename)
 
 return {
     make_filename = make_filename,
+    make_filename_from = make_filename_from,
 }

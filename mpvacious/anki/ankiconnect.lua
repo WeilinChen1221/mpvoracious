@@ -99,6 +99,14 @@ local function make_ankiconnect()
         end
     end
 
+    self.get_media_dir_path_result = function()
+        local request = {
+            action = "getMediaDirPath",
+            version = 6,
+        }
+        return self.parse_result(self.execute { request = request, suppress_log = true })
+    end
+
     self.create_deck = function(deck_name)
         local args = {
             action = "changeDeck",
@@ -194,7 +202,7 @@ local function make_ankiconnect()
         return note_ids
     end
 
-    self.get_note_fields = function(note_id)
+    self.get_note_fields_result = function(note_id)
         local request = {
             action = "notesInfo",
             version = 6,
@@ -206,15 +214,48 @@ local function make_ankiconnect()
 
         local result, error = self.parse_result(ret)
 
-        if error == nil then
-            result = result[1].fields
-            for key, value in pairs(result) do
-                result[key] = value.value
-            end
-            return result
-        else
-            return nil
+        if error ~= nil then
+            return nil, "error", error
         end
+        if h.is_empty(result) or h.is_empty(result[1]) then
+            return nil, "missing", nil
+        end
+        local fields = result[1].fields
+        for key, value in pairs(fields) do
+            fields[key] = value.value
+        end
+        return fields, "found", nil
+    end
+
+    self.get_note_fields = function(note_id)
+        local fields, state = self.get_note_fields_result(note_id)
+        if state == "found" then
+            return fields
+        end
+        return nil
+    end
+
+    self.replace_media = function(note_id, fields, on_finish_fn)
+        local request = {
+            action = "updateNoteFields",
+            version = 6,
+            params = {
+                note = {
+                    id = note_id,
+                    fields = fields,
+                }
+            }
+        }
+        local function on_finish(_, error)
+            if type(on_finish_fn) == 'function' then
+                on_finish_fn(h.is_empty(error), error)
+            end
+        end
+        self.execute {
+            request = request,
+            completion_fn = self.make_result_parser_async(on_finish),
+            suppress_log = true,
+        }
     end
 
     self.get_first_field = function(model_name)
@@ -300,6 +341,13 @@ local function make_ankiconnect()
     self.init = function(cfg_mgr)
         cfg_mgr.fail_if_not_ready()
         self.config = cfg_mgr.config()
+    end
+
+    self.init_with_config = function(config)
+        if h.is_empty(config) then
+            error("config not assigned")
+        end
+        self.config = config
     end
 
     return self

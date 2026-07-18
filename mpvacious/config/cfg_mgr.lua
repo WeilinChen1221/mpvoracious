@@ -6,6 +6,7 @@ Config management, validation, loading.
 ]]
 
 local mpopt = require('mp.options')
+local mputils = require('mp.utils')
 local msg = require('mp.msg')
 local h = require('helpers')
 local defaults = require('config.defaults')
@@ -14,7 +15,15 @@ local cfg_utils = require('config.utils')
 local default_profile_filename = 'subs2srs'
 local profiles_filename = 'subs2srs_profiles'
 
-local function make_config_mgr()
+local function make_config_mgr(dependencies)
+    dependencies = dependencies or {}
+    local read_options = dependencies.read_options or mpopt.read_options
+    local create_config_file = dependencies.create_config_file or cfg_utils.create_config_file
+    local profile_exists = dependencies.profile_exists or function(profile_name)
+        local profile_path = mputils.join_path(h.find_mpv_script_opts_directory(), profile_name .. '.conf')
+        local profile_info = mputils.file_info(profile_path)
+        return profile_info and profile_info.is_file
+    end
     local self = {
         config = nil,
         encoder = nil,
@@ -37,12 +46,12 @@ local function make_config_mgr()
     end
 
     local function read_profile_list()
-        mpopt.read_options(self.profiles, profiles_filename)
+        read_options(self.profiles, profiles_filename)
         msg.info("Read profile list. Defined profiles: " .. self.profiles.profiles)
     end
 
     local function read_profile(profile_name)
-        mpopt.read_options(self.config, profile_name)
+        read_options(self.config, profile_name)
         msg.info("Read config file: " .. profile_name)
     end
 
@@ -90,7 +99,7 @@ local function make_config_mgr()
 
     function public.init(encoder)
         self.encoder = encoder
-        cfg_utils.create_config_file(default_profile_filename)
+        create_config_file(default_profile_filename)
         self.config = h.shallow_copy(defaults.defaults)
         self.profiles = h.shallow_copy(defaults.profiles)
 
@@ -132,6 +141,38 @@ local function make_config_mgr()
             error("config value is nil:" .. name)
         end
         return self.config[name]
+    end
+
+    local function profile_is_defined(profile_name)
+        for name in string.gmatch(self.profiles.profiles, '[^,]+') do
+            if name == profile_name then
+                return true
+            end
+        end
+        return false
+    end
+
+    function public.resolve_profile(profile_name)
+        public.fail_if_not_ready()
+        if h.is_empty(profile_name) or not profile_is_defined(profile_name) then
+            return nil, string.format("Capture Profile '%s' is unavailable.", tostring(profile_name))
+        end
+        if not profile_exists(profile_name) then
+            return nil, string.format("Capture Profile '%s' is unavailable.", profile_name)
+        end
+
+        local scoped = h.shallow_copy(defaults.defaults)
+        local ok, validation_error = pcall(function()
+            read_options(scoped, default_profile_filename)
+            if profile_name ~= default_profile_filename then
+                read_options(scoped, profile_name)
+            end
+            cfg_utils.validate_config(scoped)
+        end)
+        if not ok then
+            return nil, string.format("Capture Profile '%s' is invalid: %s", profile_name, tostring(validation_error))
+        end
+        return scoped, nil
     end
 
     return public

@@ -8,7 +8,7 @@ It keeps the original mpvacious media workflow, then adds a browser-based Mining
 - Open the local Mining History page and use Yomitan normally on consecutive sentences.
 - Let Yomitan create Anki notes with `{sentence}` in your sentence field.
 - mpvoracious matches those notes in the background and adds the corresponding screenshot and audio clip later.
-- Preview, retry, delete, clear completed records, or clear all records from the Mining History page.
+- Preview sources, resend media, filter the complete history, delete records, clear completed records, or clear all records from the Mining History page.
 
 The helper server is managed with `uv` and starts automatically when mpv loads, so you do not need to manually open any helper script.
 
@@ -112,10 +112,22 @@ mpvoracious matches new Anki notes by normalizing the text in this sentence fiel
 Mining History controls:
 
 - `Preview`: load the source video in mpv, seek to the saved timestamp, pause, and keep mpv on top.
-- `Retry`: retry media backfill for failed records.
+- `Resend Media`: immediately regenerate media and completely replace the audio and image fields on every linked Anki note. It does not ask for confirmation and never changes sentence, secondary subtitle, Source Info/MiscInfo, tags, or other fields.
+- Filters: narrow the complete stored history by one or more Record Status or Capture Profile values, Source Info, primary/secondary subtitle text, or an exact Linked Anki Note ID. `Clear filters` resets the filter bar.
 - `Delete`: remove one record.
 - `Clear Done`: remove records whose media was successfully added.
 - `Clear All`: remove every history record.
+
+Each record shows a text label and decorative status light:
+
+- `Waiting for note` means the record has no linked Anki notes.
+- `Sending media` means an initial delivery or Media Resend is queued or running.
+- `Media ready` means every linked note's latest media delivery succeeded.
+- `Media failed` means at least one linked note's latest settled delivery failed.
+
+`Source Info` is captured from the source filename, path, episode, and timestamp using the Capture Profile and remains stable afterward. A record can remain linked to several Anki notes, and their delivery results are tracked independently.
+
+Media targets are also stable per linked note. Existing history databases adopt target field names once on their first resend: mpvoracious reads the Capture Profile's current audio/image field names, verifies those fields on the note, saves them, and keeps using them even if field configuration changes later. Encoding quality, padding, format, templates, and encoder settings are refreshed from the record's Capture Profile for each resend.
 
 The default Mining History settings are:
 

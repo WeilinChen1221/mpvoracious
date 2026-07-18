@@ -97,9 +97,10 @@ local function make_anki_new_note_checker()
             return action
         end
         local record = claim.record
-        self.history_controller.update_status(record.id, "matched_note", note_id, "")
-        self.update_history_note_fn(note_id, record, function(success, error)
-            if success then
+        self.update_history_note_fn(note_id, record, claim.link, function(success, error, state)
+            if state == 'missing' then
+                self.history_controller.remove_missing_note(record.id, note_id)
+            elseif success then
                 self.history_controller.update_status(record.id, "media_done", note_id, "")
             else
                 self.history_controller.update_status(record.id, "media_failed", note_id, error or "media backfill failed")
@@ -143,24 +144,7 @@ local function make_anki_new_note_checker()
         end
     end
 
-    local function process_history_retries()
-        if h.is_empty(self.history_controller) or not self.history_controller.enabled() then
-            return
-        end
-        for _, record in ipairs(self.history_controller.records_waiting_for_retry()) do
-            self.history_controller.update_status(record.id, "matched_note", record.note_id, "")
-            self.update_history_note_fn(record.note_id, record, function(success, error)
-                if success then
-                    self.history_controller.update_status(record.id, "media_done", record.note_id, "")
-                else
-                    self.history_controller.update_status(record.id, "media_failed", record.note_id, error or "media retry failed")
-                end
-            end)
-        end
-    end
-
     local function check_for_new_notes()
-        process_history_retries()
         return find_notes_added_today(process_new_notes)
     end
 

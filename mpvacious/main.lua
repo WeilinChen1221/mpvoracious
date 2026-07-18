@@ -622,6 +622,7 @@ local main = (function()
         history_controller.init(cfg_mgr, subs_observer)
         history_controller.start_background()
         note_exporter.init(ankiconnect, quick_creation_opts, subs_observer, encoder, forvo, cfg_mgr)
+        history_controller.start_resend_worker(note_exporter.resend_history_media)
         new_note_checker.init(
                 ankiconnect,
                 menu:with_update { note_exporter.update_notes },

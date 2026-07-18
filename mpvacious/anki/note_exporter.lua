@@ -6,6 +6,7 @@ License: GNU GPL, version 3 or later; http://www.gnu.org/licenses/gpl.html
 local mp = require('mp')
 local h = require('helpers')
 local dec_counter = require('utils.dec_counter')
+local ankiconnect_factory = require('anki.ankiconnect')
 
 local function make_exporter()
     local self = {}
@@ -326,6 +327,11 @@ local function make_exporter()
     end
 
     local function subtitle_from_history_record(record)
+        local source_filename = record.filename
+        if not h.is_empty(record.resend_nonce) then
+            source_filename = h.remove_extension(source_filename or 'media')
+                    .. '-resend-' .. tostring(record.resend_nonce)
+        end
         return {
             text = record.sentence,
             secondary = record.secondary or '',
@@ -333,33 +339,75 @@ local function make_exporter()
             ['end'] = tonumber(record.end_time),
             snapshot_time = tonumber(record.snapshot_time),
             source_path = record.video_path,
+            source_filename = source_filename,
+            source_duration = tonumber(record.source_duration),
+            video_track_id = record.video_track_id,
+            video_ff_index = record.video_ff_index,
+            audio_track_id = record.audio_track_id,
+            audio_ff_index = record.audio_ff_index,
+            audio_external_path = record.audio_external_path,
+            capture_volume = tonumber(record.capture_volume),
+            has_audio = record.has_audio,
+            has_video = record.has_video,
+            history_record = true,
         }
     end
 
-    local function update_note_from_history_record(note_id, record, on_finish)
-        maybe_reload_config()
+    local function history_runtime(record)
+        local config, config_error = self.cfg_mgr.resolve_profile(record.profile)
+        if h.is_empty(config) then
+            return nil, config_error or 'Capture Profile is unavailable.'
+        end
+        local scoped_ankiconnect = ankiconnect_factory.new()
+        scoped_ankiconnect.init_with_config(config)
+        local media_dir, media_dir_error = scoped_ankiconnect.get_media_dir_path_result()
+        if h.is_empty(media_dir) then
+            return nil, media_dir_error or "couldn't find Anki media directory"
+        end
+        local scoped_encoder = self.encoder.new(config)
+        scoped_encoder.set_output_dir(media_dir)
+        return {
+            config = config,
+            ankiconnect = scoped_ankiconnect,
+            encoder = scoped_encoder,
+        }, nil
+    end
+
+    local function validate_targets(note_fields, audio_field, image_field)
+        if not h.is_empty(audio_field) and note_fields[audio_field] == nil then
+            return string.format("audio target field '%s' does not exist", audio_field)
+        end
+        if not h.is_empty(image_field) and note_fields[image_field] == nil then
+            return string.format("image target field '%s' does not exist", image_field)
+        end
+        if not h.is_empty(audio_field) and audio_field == image_field then
+            return 'audio and image target fields must be different'
+        end
+        return nil
+    end
+
+    local function media_fields(config, audio_field, image_field, audio_filename, image_filename)
+        local fields = {}
+        if not h.is_empty(audio_field) then
+            fields[audio_field] = h.is_empty(audio_filename)
+                    and ''
+                    or string.format(config.audio_template, audio_filename)
+        end
+        if not h.is_empty(image_field) then
+            fields[image_field] = h.is_empty(image_filename)
+                    and ''
+                    or string.format(config.image_template, image_filename)
+        end
+        return fields
+    end
+
+    local function create_history_media(runtime, record, on_finish)
         local sub = subtitle_from_history_record(record)
         if h.is_empty(sub.source_path) then
-            if on_finish then
-                on_finish(false, "history record has no video path")
-            end
-            return
+            return on_finish(false, 'history record has no video path')
         end
-
-        local anki_media_dir = self.ankiconnect.get_media_dir_path()
-        if h.is_empty(anki_media_dir) then
-            if on_finish then
-                on_finish(false, "couldn't find Anki media directory")
-            end
-            return
-        end
-
-        self.encoder.set_output_dir(anki_media_dir)
-        self.forvo.set_output_dir(anki_media_dir)
-
-        local snapshot = self.encoder.snapshot.create_job(sub)
-        local audio = self.encoder.audio.create_job(sub, audio_padding())
-        local new_data = construct_note_fields(sub.text, sub.secondary, snapshot.filename, audio.filename)
+        local snapshot = runtime.encoder.snapshot.create_job(sub)
+        local audio = runtime.encoder.audio.create_job(sub, runtime.config.audio_padding or 0)
         local remaining = 2
         local media_ok = true
 
@@ -372,25 +420,154 @@ local function make_exporter()
                 return
             end
             if media_ok == false then
-                if on_finish then
-                    on_finish(false, "media creation failed")
-                end
-                return
+                return on_finish(false, 'media creation failed')
             end
-            self.ankiconnect.append_media(
-                    note_id,
-                    make_new_note_data(self.ankiconnect.get_note_fields(note_id), h.deep_copy(new_data), { overwrite = false }),
-                    substitute_fmt(self.config.note_tag),
-                    function(error)
-                        if on_finish then
-                            on_finish(h.is_empty(error), error)
-                        end
-                    end
-            )
+            on_finish(true, nil, audio.filename, snapshot.filename)
         end
 
         snapshot.on_finish(media_finished).run_async()
         audio.on_finish(media_finished).run_async()
+    end
+
+    local function update_note_from_history_record(note_id, record, link, on_finish)
+        if type(link) == 'function' then
+            on_finish = link
+            link = nil
+        end
+        link = link or {
+            audio_field = self.config.audio_field,
+            image_field = self.config.image_field,
+        }
+        local runtime, runtime_error = history_runtime(record)
+        if not runtime then
+            return on_finish(false, runtime_error)
+        end
+        local note_fields, note_state, note_error = runtime.ankiconnect.get_note_fields_result(note_id)
+        if note_state == 'missing' then
+            return on_finish(false, 'Anki note no longer exists', 'missing')
+        elseif note_state ~= 'found' then
+            return on_finish(false, note_error or 'AnkiConnect unavailable')
+        end
+        local target_error = validate_targets(note_fields, link.audio_field, link.image_field)
+        if target_error then
+            return on_finish(false, target_error)
+        end
+        create_history_media(runtime, record, function(success, error, audio_filename, image_filename)
+            if not success then
+                return on_finish(false, error)
+            end
+            runtime.ankiconnect.replace_media(
+                    note_id,
+                    media_fields(
+                            runtime.config,
+                            link.audio_field,
+                            link.image_field,
+                            audio_filename,
+                            image_filename
+                    ),
+                    function(update_success, update_error)
+                        on_finish(update_success, update_error)
+                    end
+            )
+        end)
+    end
+
+    local function resend_history_media(record, links, callbacks)
+        local runtime, runtime_error = history_runtime(record)
+        if not runtime then
+            return callbacks.on_finish(runtime_error)
+        end
+        if h.is_empty(record.video_path) then
+            return callbacks.on_finish('history record has no video path')
+        end
+
+        local prepared = {}
+        local adoptions = {}
+        for _, link in ipairs(links or {}) do
+            local note_fields, note_state, note_error = runtime.ankiconnect.get_note_fields_result(link.note_id)
+            if note_state == 'missing' then
+                callbacks.on_result(link.note_id, 'missing', '')
+            elseif note_state ~= 'found' then
+                return callbacks.on_finish(note_error or 'AnkiConnect unavailable')
+            else
+                local audio_field = h.is_empty(link.audio_field) and runtime.config.audio_field or link.audio_field
+                local image_field = h.is_empty(link.image_field) and runtime.config.image_field or link.image_field
+                local target_error = validate_targets(note_fields, audio_field, image_field)
+                if target_error then
+                    return callbacks.on_finish(string.format('Note %s: %s', tostring(link.note_id), target_error))
+                end
+                local item = {
+                    note_id = link.note_id,
+                    audio_field = audio_field,
+                    image_field = image_field,
+                }
+                table.insert(prepared, item)
+                if h.is_empty(link.audio_field) or h.is_empty(link.image_field) then
+                    table.insert(adoptions, item)
+                end
+            end
+        end
+
+        local function generate_and_update()
+            if #prepared == 0 then
+                return callbacks.on_finish(nil)
+            end
+            create_history_media(runtime, record, function(success, error, audio_filename, image_filename)
+                if not success then
+                    return callbacks.on_finish(error)
+                end
+                local remaining = #prepared
+                for _, item in ipairs(prepared) do
+                    runtime.ankiconnect.replace_media(
+                            item.note_id,
+                            media_fields(
+                                    runtime.config,
+                                    item.audio_field,
+                                    item.image_field,
+                                    audio_filename,
+                                    image_filename
+                            ),
+                            function(update_success, update_error)
+                                callbacks.on_result(
+                                        item.note_id,
+                                        update_success and 'done' or 'failed',
+                                        update_error or ''
+                                )
+                                remaining = remaining - 1
+                                if remaining == 0 then
+                                    callbacks.on_finish(nil)
+                                end
+                            end
+                    )
+                end
+            end)
+        end
+
+        if #adoptions == 0 then
+            return generate_and_update()
+        end
+        local remaining_adoptions = #adoptions
+        local adoption_failed = false
+        for _, item in ipairs(adoptions) do
+            callbacks.adopt_targets(
+                    item.note_id,
+                    item.audio_field,
+                    item.image_field,
+                    function(success, error)
+                        if adoption_failed then
+                            return
+                        end
+                        if not success then
+                            adoption_failed = true
+                            return callbacks.on_finish(error or 'failed to persist legacy media targets')
+                        end
+                        remaining_adoptions = remaining_adoptions - 1
+                        if remaining_adoptions == 0 then
+                            generate_and_update()
+                        end
+                    end
+            )
+        end
     end
 
     local function export_to_anki(gui)
@@ -535,6 +712,9 @@ local function make_exporter()
         update_notes = update_notes,
         export_to_anki = export_to_anki,
         update_note_from_history_record = update_note_from_history_record,
+        resend_history_media = resend_history_media,
+        history_media_fields = media_fields,
+        history_subtitle = subtitle_from_history_record,
         maybe_reload_config = maybe_reload_config,
         join_fields = join_fields,
         update_last_note = update_last_note,

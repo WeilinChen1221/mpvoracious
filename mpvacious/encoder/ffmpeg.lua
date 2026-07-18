@@ -79,7 +79,7 @@ local function make_ffmpeg_encoder(cfg_mgr)
         end
     end
 
-    self.make_static_snapshot_args = function(source_path, output_path, timestamp)
+    self.make_static_snapshot_args = function(source_path, output_path, timestamp, track_context)
         local encoder_args
         if self.config.snapshot_format == 'avif' then
             encoder_args = make_avif_encoder_args(self.config.snapshot_quality, true)
@@ -105,11 +105,15 @@ local function make_ffmpeg_encoder(cfg_mgr)
                 '-frames:v', '1',
                 h.unpack(encoder_args)
         )
+        if track_context and track_context.history_record == true then
+            table.insert(args, '-map')
+            table.insert(args, '0:' .. tostring(track_context.video_ff_index or 'v'))
+        end
         table.insert(args, output_path)
         return args
     end
 
-    self.make_animated_snapshot_args = function(source_path, output_path, start_timestamp, end_timestamp)
+    self.make_animated_snapshot_args = function(source_path, output_path, start_timestamp, end_timestamp, track_context)
         local encoder_args
         if self.config.animated_snapshot_format == 'avif' then
             encoder_args = make_avif_encoder_args(self.config.animated_snapshot_quality, false)
@@ -136,6 +140,10 @@ local function make_ffmpeg_encoder(cfg_mgr)
                 ),
                 h.unpack(encoder_args)
         )
+        if track_context and track_context.history_record == true then
+            table.insert(args, '-map')
+            table.insert(args, '0:' .. tostring(track_context.video_ff_index or 'v'))
+        end
         table.insert(args, output_path)
         return args
     end
@@ -171,13 +179,14 @@ local function make_ffmpeg_encoder(cfg_mgr)
         return filters
     end
 
-    self.append_user_audio_args = function(args)
+    self.append_user_audio_args = function(args, capture_volume)
         local new_args = {}
         local filters = ''
 
         filters = separate_filters(filters, new_args, args)
         if self.config.tie_volumes then
-            filters = add_filter(filters, string.format("volume=%.1f", mp.get_property_native('volume') / 100.0))
+            local selected_volume = capture_volume or mp.get_property_native('volume')
+            filters = add_filter(filters, string.format("volume=%.1f", selected_volume / 100.0))
         end
 
         local user_args = {}
@@ -194,14 +203,24 @@ local function make_ffmpeg_encoder(cfg_mgr)
     end
 
     self.make_audio_args = function(
-            source_path, output_path, start_timestamp, end_timestamp, args_consumer
+            source_path, output_path, start_timestamp, end_timestamp, args_consumer, track_context
     )
-        local audio_track = h.get_active_track('audio')
-        local audio_track_id = audio_track and audio_track['ff-index'] or 'a'
-
-        if audio_track and audio_track.external == true then
-            source_path = audio_track['external-filename']
-            audio_track_id = 'a'
+        local audio_track_id
+        local capture_volume
+        if track_context and track_context.history_record == true then
+            audio_track_id = track_context.audio_ff_index or 'a'
+            capture_volume = track_context.capture_volume
+            if not h.is_empty(track_context.audio_external_path) then
+                source_path = track_context.audio_external_path
+                audio_track_id = 'a'
+            end
+        else
+            local audio_track = h.get_active_track('audio')
+            audio_track_id = audio_track and audio_track['ff-index'] or 'a'
+            if audio_track and audio_track.external == true then
+                source_path = audio_track['external-filename']
+                audio_track_id = 'a'
+            end
         end
 
         local function make_ffargs(...)
@@ -216,7 +235,8 @@ local function make_ffmpeg_encoder(cfg_mgr)
                             '-map', string.format("0:%s", tostring(audio_track_id)),
                             '-ac', '1',
                             ...
-                    )
+                    ),
+                    capture_volume
             )
         end
 

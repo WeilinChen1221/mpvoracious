@@ -1,0 +1,3 @@
+# Stabilize target fields but refresh encoding settings
+
+Media Resend writes to the audio and image fields captured for each Linked Anki Note, while regenerating files with the current settings of the Mining History Record's Capture Profile. This preserves where an existing note expects media while allowing deliberate quality, padding, format, or encoder changes to take effect; if that profile is unavailable, resend fails without falling back to an unrelated active profile or modifying existing fields. Legacy links that predate stored targets adopt the Capture Profile's current field names only after those fields are verified on the Anki Note, then keep those names stable.

@@ -5,6 +5,8 @@ local make_capture = require('history.capture')
 local make_server_process = require('history.server_process')
 
 local preview_poll_interval_seconds = 1
+local resend_poll_interval_seconds = 1
+local resend_renew_interval_seconds = 10
 local pending_preview_after_load
 
 local function preview_timestamp(record)
@@ -44,6 +46,8 @@ local function new()
     local self = {
         opened_page = false,
         preview_timer = nil,
+        resend_timer = nil,
+        resend_busy = false,
     }
 
     function self.init(cfg_mgr, subs_observer)
@@ -129,18 +133,133 @@ local function new()
         end)
     end
 
-    function self.records_waiting_for_retry()
-        if not self.enabled() then
-            return {}
+    function self.remove_missing_note(record_id, note_id)
+        self.client.remove_missing_note(record_id, note_id, function(_, request_error)
+            if request_error then
+                h.notify('Mining history missing-note update failed: ' .. tostring(request_error), 'warn', 3)
+            end
+        end)
+    end
+
+    local function append_error(existing, new_error)
+        if h.is_empty(new_error) then
+            return existing
+        elseif h.is_empty(existing) then
+            return tostring(new_error)
+        else
+            return existing .. '; ' .. tostring(new_error)
         end
-        local parsed = self.client.list_records()
-        local ret = {}
-        for _, record in ipairs(parsed and parsed.records or {}) do
-            if record.status == "matched_note" and record.note_id ~= nil and record.error == "retry requested" then
-                table.insert(ret, record)
+    end
+
+    function self.process_resend_lease(lease)
+        local generation_id = lease.generation_id
+        local lease_token = lease.lease_token
+        local pending_reports = 0
+        local exporter_finished = false
+        local finalizing = false
+        local final_error = nil
+        local renew_timer
+
+        local function stop_renewal()
+            if renew_timer ~= nil then
+                renew_timer:kill()
+                renew_timer = nil
             end
         end
-        return ret
+
+        local function maybe_finalize()
+            if not exporter_finished or pending_reports > 0 or finalizing then
+                return
+            end
+            finalizing = true
+            stop_renewal()
+            self.client.finalize_resend(generation_id, lease_token, final_error or '', function(_, request_error)
+                if request_error then
+                    h.notify('Mining history resend finalization failed: ' .. tostring(request_error), 'warn', 4)
+                end
+                self.resend_busy = false
+            end)
+        end
+
+        renew_timer = mp.add_periodic_timer(resend_renew_interval_seconds, function()
+            self.client.renew_resend(generation_id, lease_token, function(_, request_error)
+                if request_error then
+                    final_error = append_error(final_error, 'lease renewal failed: ' .. tostring(request_error))
+                end
+            end)
+        end)
+
+        lease.record.resend_nonce = tostring(generation_id) .. '-' .. lease_token:sub(1, 8)
+        local callbacks = {
+            on_result = function(note_id, state, error)
+                pending_reports = pending_reports + 1
+                self.client.report_resend(
+                        generation_id,
+                        lease_token,
+                        note_id,
+                        state,
+                        error or '',
+                        function(_, request_error)
+                            if request_error then
+                                final_error = append_error(
+                                        final_error,
+                                        string.format('failed to record Note %s result: %s', tostring(note_id), tostring(request_error))
+                                )
+                            end
+                            pending_reports = pending_reports - 1
+                            maybe_finalize()
+                        end
+                )
+            end,
+            adopt_targets = function(note_id, audio_field, image_field, on_finish)
+                self.client.adopt_targets(
+                        generation_id,
+                        lease_token,
+                        note_id,
+                        audio_field,
+                        image_field,
+                        function(parsed, request_error)
+                            on_finish(not h.is_empty(parsed) and h.is_empty(request_error), request_error)
+                        end
+                )
+            end,
+            on_finish = function(error)
+                final_error = append_error(final_error, error)
+                exporter_finished = true
+                maybe_finalize()
+            end,
+        }
+        local ok, resend_error = pcall(
+                self.resend_fn,
+                lease.record,
+                lease.record.linked_notes or {},
+                callbacks
+        )
+        if not ok then
+            callbacks.on_finish('resend worker failed: ' .. tostring(resend_error))
+        end
+    end
+
+    function self.handle_resend_request()
+        if not self.enabled() or self.resend_busy or h.is_empty(self.resend_fn) then
+            return
+        end
+        self.resend_busy = true
+        self.client.lease_resend(function(parsed, request_error)
+            if request_error or h.is_empty(parsed) or h.is_empty(parsed.lease) then
+                self.resend_busy = false
+                return
+            end
+            self.process_resend_lease(parsed.lease)
+        end)
+    end
+
+    function self.start_resend_worker(resend_fn)
+        if not self.enabled() or self.resend_timer ~= nil then
+            return
+        end
+        self.resend_fn = resend_fn
+        self.resend_timer = mp.add_periodic_timer(resend_poll_interval_seconds, self.handle_resend_request)
     end
 
     return self

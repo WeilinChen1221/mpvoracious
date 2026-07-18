@@ -51,7 +51,7 @@ local function make_mpv_encoder(cfg_mgr)
         }
     end
 
-    self.make_static_snapshot_args = function(source_path, output_path, timestamp)
+    self.make_static_snapshot_args = function(source_path, output_path, timestamp, track_context)
         local encoder_args
         if self.config.snapshot_format == 'avif' then
             encoder_args = {
@@ -78,7 +78,7 @@ local function make_mpv_encoder(cfg_mgr)
             }
         end
 
-        return self.prepend_common_args(
+        local args = self.prepend_common_args(
                 source_path,
                 '--audio=no',
                 '--frames=1',
@@ -87,9 +87,13 @@ local function make_mpv_encoder(cfg_mgr)
                 '-o=' .. output_path,
                 h.unpack(encoder_args)
         )
+        if track_context and track_context.history_record == true then
+            table.insert(args, '--vid=' .. tostring(track_context.video_track_id or 'auto'))
+        end
+        return args
     end
 
-    self.make_animated_snapshot_args = function(source_path, output_path, start_timestamp, end_timestamp)
+    self.make_animated_snapshot_args = function(source_path, output_path, start_timestamp, end_timestamp, track_context)
         local encoder_args
         if self.config.animated_snapshot_format == 'avif' then
             encoder_args = {
@@ -106,7 +110,7 @@ local function make_mpv_encoder(cfg_mgr)
             }
         end
 
-        return self.prepend_common_args(
+        local args = self.prepend_common_args(
                 source_path,
                 '--audio=no',
                 '--start=' .. eutils.toms(start_timestamp),
@@ -117,16 +121,30 @@ local function make_mpv_encoder(cfg_mgr)
                 '-o=' .. output_path,
                 h.unpack(encoder_args)
         )
+        if track_context and track_context.history_record == true then
+            table.insert(args, '--vid=' .. tostring(track_context.video_track_id or 'auto'))
+        end
+        return args
     end
 
     self.make_audio_args = function(source_path, output_path,
-                                    start_timestamp, end_timestamp, args_consumer)
-        local audio_track = h.get_active_track('audio')
-        local audio_track_id = mp.get_property("aid")
-
-        if audio_track and audio_track.external == true then
-            source_path = audio_track['external-filename']
-            audio_track_id = 'auto'
+                                    start_timestamp, end_timestamp, args_consumer, track_context)
+        local audio_track_id
+        local capture_volume
+        if track_context and track_context.history_record == true then
+            audio_track_id = track_context.audio_track_id or 'auto'
+            capture_volume = track_context.capture_volume
+            if not h.is_empty(track_context.audio_external_path) then
+                source_path = track_context.audio_external_path
+                audio_track_id = 'auto'
+            end
+        else
+            local audio_track = h.get_active_track('audio')
+            audio_track_id = mp.get_property('aid') or 'auto'
+            if audio_track and audio_track.external == true then
+                source_path = audio_track['external-filename']
+                audio_track_id = 'auto'
+            end
         end
 
         local function make_mpvargs(...)
@@ -139,7 +157,7 @@ local function make_mpv_encoder(cfg_mgr)
                     '--end=' .. eutils.toms(end_timestamp),
                     string.format(
                             '--volume=%d',
-                            self.config.tie_volumes and mp.get_property('volume') or 100
+                            self.config.tie_volumes and (capture_volume or mp.get_property('volume')) or 100
                     ),
                     ...
             )
