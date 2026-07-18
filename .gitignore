@@ -4,6 +4,7 @@
 *.zip
 *.html
 *TODO*
+.DS_Store
 
 .github/RELEASE/*.conf
 .venv/
