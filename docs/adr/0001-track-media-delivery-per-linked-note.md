@@ -1,3 +1,0 @@
-# Track media delivery per linked Anki note
-
-A Mining History Record can supply media to multiple Anki Notes, and Media Resend targets all of them. Track the latest Media Delivery outcome for each record-note relationship and derive Record Status from those outcomes, rather than letting the most recently processed note overwrite a single result; otherwise a successful note can conceal a failed sibling and the status indicator cannot be trusted. Updates are best-effort per note: a successful delivery is not rolled back when a sibling fails, and the aggregate remains `media_failed` until every linked note's latest delivery succeeds.
