@@ -30,8 +30,12 @@ INDEX_HTML = """<!doctype html>
       background: Canvas;
       color: CanvasText;
       --border: color-mix(in srgb, CanvasText 20%, transparent);
+      --border-strong: color-mix(in srgb, CanvasText 30%, transparent);
       --muted: color-mix(in srgb, CanvasText 65%, transparent);
       --surface: color-mix(in srgb, Canvas 94%, CanvasText 6%);
+      --surface-raised: color-mix(in srgb, Canvas 98%, CanvasText 2%);
+      --focus: #2563eb;
+      --danger: #b42318;
       --waiting: #6b7280;
       --sending: #b45309;
       --ready: #15803d;
@@ -39,6 +43,8 @@ INDEX_HTML = """<!doctype html>
     }
     @media (prefers-color-scheme: dark) {
       :root {
+        --focus: #60a5fa;
+        --danger: #fb7185;
         --waiting: #9ca3af;
         --sending: #fbbf24;
         --ready: #4ade80;
@@ -50,31 +56,44 @@ INDEX_HTML = """<!doctype html>
     header, main { width: min(1080px, calc(100% - 32px)); margin: 0 auto; }
     header { padding: 28px 0 16px; }
     h1 { margin: 0; font-size: 1.65rem; line-height: 1.2; }
+    .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
     main { display: grid; gap: 12px; padding-bottom: 28px; }
-    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .filters {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+    .filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .filter-title { color: CanvasText; font-size: .88rem; font-weight: 650; letter-spacing: .01em; }
+    .filter-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 10px;
-      margin-top: 18px;
-      padding: 12px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface);
+      align-items: start;
     }
     .filters label { display: grid; gap: 5px; color: var(--muted); font-size: .82rem; }
     .filters input, .filters select {
       width: 100%;
-      min-height: 36px;
-      padding: 6px 8px;
+      min-height: 38px;
+      padding: 7px 9px;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 7px;
       background: Canvas;
       color: CanvasText;
       font: inherit;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
     }
     .filters select[multiple] { min-height: 86px; }
-    .filter-actions { display: flex; align-items: end; }
+    .filters input:focus, .filters select:focus {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
+      outline: none;
+    }
     article { border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--surface); }
     article[data-status="media_failed"] { border-color: var(--failed); }
     .sentence { margin: 0 0 10px; font-size: 1.05rem; line-height: 1.5; user-select: text; white-space: pre-wrap; }
@@ -88,42 +107,100 @@ INDEX_HTML = """<!doctype html>
     .status[data-status="media_done"] .status-dot { background: var(--ready); }
     .status[data-status="media_failed"] .status-dot { background: var(--failed); }
     .record-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    button { padding: 7px 10px; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 6px; background: Canvas; color: CanvasText; cursor: pointer; }
-    button:disabled { cursor: default; opacity: .55; }
-    button:hover:not(:disabled) { background: color-mix(in srgb, CanvasText 8%, Canvas); }
+    button {
+      display: inline-flex;
+      min-height: 38px;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 8px 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: 7px;
+      background: var(--surface-raised);
+      box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 8%, transparent);
+      color: CanvasText;
+      cursor: pointer;
+      font: inherit;
+      font-size: .86rem;
+      font-weight: 600;
+      line-height: 1;
+      transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease, transform 140ms ease;
+    }
+    button svg { width: 16px; height: 16px; flex: 0 0 auto; }
+    button:disabled { cursor: default; opacity: .48; box-shadow: none; }
+    button:hover:not(:disabled) {
+      border-color: color-mix(in srgb, CanvasText 42%, transparent);
+      background: color-mix(in srgb, CanvasText 7%, Canvas);
+      box-shadow: 0 2px 5px color-mix(in srgb, CanvasText 12%, transparent);
+      transform: translateY(-1px);
+    }
+    button:active:not(:disabled) { box-shadow: 0 1px 2px color-mix(in srgb, CanvasText 8%, transparent); transform: translateY(0); }
+    button:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 30%, transparent); outline-offset: 2px; }
+    .button-quiet { min-height: 34px; padding: 6px 9px; border-color: transparent; background: transparent; box-shadow: none; color: var(--muted); }
+    .button-quiet:hover:not(:disabled) { border-color: var(--border); color: CanvasText; box-shadow: none; }
+    .button-danger { color: var(--danger); }
+    .button-danger:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+      background: color-mix(in srgb, var(--danger) 9%, Canvas);
+      color: var(--danger);
+    }
     .empty { color: var(--muted); }
     #load-more { justify-self: center; }
+    @media (prefers-reduced-motion: reduce) {
+      button, .filters input, .filters select { transition: none; }
+    }
+    @media (max-width: 640px) {
+      .page-heading { align-items: stretch; flex-direction: column; }
+      .toolbar { display: grid; grid-template-columns: 1fr 1fr; }
+      .toolbar button { width: 100%; }
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>Mpvoracious Mining History</h1>
-    <div class="toolbar">
-      <button id="clear-done" type="button">Clear Done</button>
-      <button id="clear-all" type="button">Clear All</button>
+    <div class="page-heading">
+      <h1>Mpvoracious Mining History</h1>
+      <div class="toolbar" role="group" aria-label="History actions">
+        <button id="clear-done" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6"/></svg>
+          Clear Done
+        </button>
+        <button id="clear-all" class="button-danger" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg>
+          Clear All
+        </button>
+      </div>
     </div>
     <form id="filters" class="filters">
-      <label>Record Status
-        <select id="status-filter" multiple>
-          <option value="pending_note">Waiting for note</option>
-          <option value="matched_note">Sending media</option>
-          <option value="media_done">Media ready</option>
-          <option value="media_failed">Media failed</option>
-        </select>
-      </label>
-      <label>Source Info
-        <input id="source-filter" type="search" autocomplete="off">
-      </label>
-      <label>Subtitle
-        <input id="subtitle-filter" type="search" autocomplete="off">
-      </label>
-      <label>Capture Profile
-        <select id="profile-filter" multiple></select>
-      </label>
-      <label>Linked Anki Note ID
-        <input id="note-filter" type="number" min="1" step="1" inputmode="numeric">
-      </label>
-      <div class="filter-actions"><button id="clear-filters" type="button">Clear filters</button></div>
+      <div class="filter-bar">
+        <span class="filter-title">Filter history</span>
+        <button id="clear-filters" class="button-quiet" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
+          Clear Filters
+        </button>
+      </div>
+      <div class="filter-grid">
+        <label>Record Status
+          <select id="status-filter" multiple>
+            <option value="pending_note">Waiting for note</option>
+            <option value="matched_note">Sending media</option>
+            <option value="media_done">Media ready</option>
+            <option value="media_failed">Media failed</option>
+          </select>
+        </label>
+        <label>Source Info
+          <input id="source-filter" type="search" autocomplete="off">
+        </label>
+        <label>Subtitle
+          <input id="subtitle-filter" type="search" autocomplete="off">
+        </label>
+        <label>Capture Profile
+          <select id="profile-filter" multiple></select>
+        </label>
+        <label>Linked Anki Note ID
+          <input id="note-filter" type="number" min="1" step="1" inputmode="numeric">
+        </label>
+      </div>
     </form>
   </header>
   <main>
@@ -155,6 +232,20 @@ INDEX_HTML = """<!doctype html>
 
     function selectedValues(select) {
       return Array.from(select.selectedOptions, (option) => option.value);
+    }
+
+    function filtersAreActive() {
+      return selectedValues(statusFilter).length > 0
+        || selectedValues(profileFilter).length > 0
+        || sourceFilter.value.trim() !== ""
+        || subtitleFilter.value.trim() !== ""
+        || noteFilter.value.trim() !== "";
+    }
+
+    function updateClearFiltersButton() {
+      const active = filtersAreActive();
+      clearFiltersButton.disabled = !active;
+      clearFiltersButton.title = active ? "Clear all filters" : "No filters applied";
     }
 
     function queryParams(cursor) {
@@ -306,6 +397,7 @@ INDEX_HTML = """<!doctype html>
 
     function scheduleFilteredLoad() {
       clearTimeout(filterTimer);
+      updateClearFiltersButton();
       requestSerial += 1;
       renderedRecords = [];
       nextCursor = null;
@@ -323,6 +415,7 @@ INDEX_HTML = """<!doctype html>
       sourceFilter.value = "";
       subtitleFilter.value = "";
       noteFilter.value = "";
+      updateClearFiltersButton();
       load();
     });
     loadMoreButton.addEventListener("click", () => load({append: true}));
@@ -336,6 +429,7 @@ INDEX_HTML = """<!doctype html>
       await fetch("/api/records/clear-all", {method: "POST"});
       await load();
     });
+    updateClearFiltersButton();
     load();
     setInterval(() => load(), 3000);
   </script>
