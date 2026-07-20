@@ -1,4 +1,5 @@
 local h = require('helpers')
+local executables = require('encoder.executables')
 
 local function new(cfg_mgr, client)
     local self = {
@@ -14,8 +15,10 @@ local function new(cfg_mgr, client)
         local plugin_dir = h.find_mpvacious_dir()
         local host, port = parse_host_port(cfg_mgr.query("mining_history_url"))
         local args = {
-            'uv',
+            executables.find_exec('uv'),
             'run',
+            '--isolated',
+            '--no-dev',
             '--project',
             plugin_dir,
             'python',
