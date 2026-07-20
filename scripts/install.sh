@@ -47,15 +47,34 @@ die() {
 	exit 1
 }
 
+curl_with_retries() {
+	local attempt
+	for attempt in 1 2 3; do
+		if curl "$@"; then
+			return 0
+		fi
+		if [ "$attempt" -lt 3 ]; then
+			echo "curl failed; retrying ($attempt/3)..." >&2
+			sleep "$attempt"
+		fi
+	done
+	return 1
+}
+
 set_latest_version() {
-	local -r api_url="https://api.github.com/repos/WeilinChen1221/mpvoracious/releases/latest"
-	latest_version=$(
-		curl -Ls "$api_url" |
-			grep -Po '"tag_name":\s*"\K[^"]+(?=")'
-	) || die "Failed to find the latest $prog version."
-	if [ -z "$latest_version" ]; then
+	local -r latest_release_url="https://github.com/WeilinChen1221/mpvoracious/releases/latest"
+	local release_url
+	release_url="$(curl_with_retries -fsSLo /dev/null -w '%{url_effective}' "$latest_release_url")" ||
 		die "Failed to find the latest $prog version."
-	fi
+
+	case "$release_url" in
+	*/releases/tag/*)
+		latest_version="${release_url##*/}"
+		;;
+	*)
+		die "Failed to find the latest $prog version."
+		;;
+	esac
 }
 
 check_missing_dependencies() {
@@ -126,7 +145,7 @@ download_default_config_file() {
 	if [ ! -f "$conf_file" ]; then
 		echo "Config not found, downloading default ${package}.conf..."
 		mkdir -p -- "$mpv_script_opts_dir" || echo "Couldn't create: $mpv_script_opts_dir"
-		curl -Ls -o "$conf_file" "$conf_url" || echo "Couldn't download: $conf_url"
+		curl_with_retries -fLsS -o "$conf_file" "$conf_url" || echo "Couldn't download: $conf_url"
 	fi
 }
 
@@ -158,7 +177,7 @@ main() {
 
 	# Install new version
 	echo "Downloading archive..."
-	curl -Ls -o "$zip_file" "$zip_url" || abort "Couldn't download: $zip_url"
+	curl_with_retries -fLsS -o "$zip_file" "$zip_url" || abort "Couldn't download: $zip_url"
 	echo "Extracting archive..."
 	unzip -qod "$mpv_config_dir/scripts" "$zip_file" || abort "Couldn't extract: $zip_file"
 	echo "Deleting downloaded archive..."

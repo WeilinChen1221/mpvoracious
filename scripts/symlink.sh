@@ -57,21 +57,32 @@ delete_existing_installation() {
 	if [[ -L $install_dest ]]; then
 		rm -f -- "$install_dest"
 	elif [[ -e "$install_dest" ]]; then
-		gio trash -- "$install_dest" ||
-			trash-put -- "$install_dest" ||
-			die "Couldn't delete directory: $install_dest"
+		if command -v gio >/dev/null 2>&1; then
+			gio trash -- "$install_dest"
+		elif command -v trash-put >/dev/null 2>&1; then
+			trash-put -- "$install_dest"
+		elif [[ $(uname) == "Darwin" ]]; then
+			osascript - "$install_dest" <<'APPLESCRIPT'
+on run argv
+	tell application "Finder" to delete POSIX file (item 1 of argv)
+end run
+APPLESCRIPT
+		else
+			die "Couldn't move directory to trash: $install_dest"
+		fi
 	fi
 }
 
 main() {
 	[[ -d $source_dir ]] || die "Directory does not exist: $source_dir"
+	source_dir="$(cd -- "$source_dir" && pwd -P)"
 	set_mpv_config_dir
 	mkdir -p -- "$mpv_config_dir/scripts" || die "Couldn't create mpv scripts directory."
 	echo "Removing existing installation..."
 	install_dest="$mpv_config_dir/scripts/$prog"
 	delete_existing_installation
 	echo "Linking directory..."
-	ln -srf "./$source_dir" "$install_dest" || die "Couldn't symlink: $install_dest"
+	ln -s -- "$source_dir" "$install_dest" || die "Couldn't symlink: $install_dest"
 	echo "${prog} has been installed in development mode."
 }
 
